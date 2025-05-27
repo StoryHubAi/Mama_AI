@@ -53,7 +53,7 @@ language_detector = LanguageDetector()
 @app.route('/')
 def home():
     return jsonify({
-        "message": "MAMA-AI: AI-Powered Maternal Health Assistant",
+        "message": "MAMA-AI: Your AI-Powered Maternal Health Assistant",
         "status": "active",
         "version": "1.0.0"
     })
@@ -92,6 +92,9 @@ def sms_callback():
         text = request.form.get('text')
         date = request.form.get('date')
         
+        # Log incoming SMS for debugging
+        app.logger.info(f"📨 Incoming SMS: From={from_number}, Text='{text}'")
+        
         # Process SMS
         response = sms_service.handle_incoming_sms(
             from_number=from_number,
@@ -100,7 +103,9 @@ def sms_callback():
             received_at=date
         )
         
-        return jsonify({"status": "success", "message": "SMS processed"}), 200
+        app.logger.info(f"📤 SMS Response: {response}")
+        
+        return jsonify({"status": "success", "message": "SMS processed", "response": response}), 200
         
     except Exception as e:
         app.logger.error(f"SMS Error: {str(e)}")
@@ -160,6 +165,44 @@ def test_sms():
             "status": "error",
             "message": f"Error: {str(e)}"
         }), 500
+
+@app.route('/test-sms-response', methods=['POST', 'GET'])
+def test_sms_response():
+    """Test SMS response generation without sending actual SMS"""
+    try:
+        if request.method == 'POST':
+            from_number = request.form.get('from', '+254700000001')
+            text = request.form.get('text', 'hi')
+        else:
+            from_number = request.args.get('from', '+254700000001')
+            text = request.args.get('text', 'hi')
+        
+        # Get or create user
+        from src.models import User
+        user = User.query.filter_by(phone_number=from_number).first()
+        if not user:
+            user = User(
+                phone_number=from_number,
+                name="Test User",
+                preferred_language="en",
+                is_active=True
+            )
+            db.session.add(user)
+            db.session.commit()
+        
+        # Generate AI response
+        ai_response = sms_service._process_sms_content(text.lower(), user)
+        
+        return jsonify({
+            "incoming_sms": text,
+            "from_number": from_number,
+            "ai_response": ai_response,
+            "user_language": user.preferred_language,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/send-reminders', methods=['POST'])
 def send_reminders():
@@ -587,9 +630,12 @@ def sandbox_interface():
 def health_check():
     """Health check endpoint"""
     try:
-        db_status = "connected" if db.engine.execute("SELECT 1").scalar() else "disconnected"
-    except:
-        db_status = "disconnected"
+        # Test database connection using SQLAlchemy 2.0 syntax
+        from sqlalchemy import text
+        result = db.session.execute(text("SELECT 1")).scalar()
+        db_status = "connected" if result else "disconnected"
+    except Exception as e:
+        db_status = f"disconnected - {str(e)}"
     
     at_status = "configured" if username and api_key and api_key != 'test_api_key_for_development' else "not_configured"
     
