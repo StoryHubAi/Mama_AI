@@ -28,17 +28,21 @@ migrate = Migrate(app, db)
 # Initialize Africa's Talking
 username = os.getenv('AFRICASTALKING_USERNAME')
 api_key = os.getenv('AFRICASTALKING_API_KEY')
+environment = os.getenv('AFRICASTALKING_ENVIRONMENT', 'sandbox')
 
-# Only initialize if credentials are provided (for development)
+# Initialize Africa's Talking with proper credentials
 if username and api_key and api_key != 'test_api_key_for_development':
     try:
         africastalking.initialize(username, api_key)
-        print(f"✅ Africa's Talking initialized with username: {username}")
+        print(f"✅ Africa's Talking initialized successfully!")
+        print(f"   Username: {username}")
+        print(f"   Environment: {environment}")
+        print(f"   Shortcode: {os.getenv('AFRICASTALKING_SHORTCODE', 'Not set')}")
     except Exception as e:
         print(f"⚠️  Africa's Talking initialization failed: {str(e)}")
-        print("   Running in development mode without Africa's Talking")
+        print("   Please check your credentials and try again")
 else:
-    print("⚠️  Running in development mode without Africa's Talking credentials")
+    print("⚠️  Running in development mode without valid Africa's Talking credentials")
 
 # Initialize services
 ussd_service = USSDService()
@@ -119,6 +123,43 @@ def delivery_report():
     except Exception as e:
         app.logger.error(f"Delivery report error: {str(e)}")
         return jsonify({"status": "error"}), 500
+
+@app.route('/test-sms', methods=['POST'])
+def test_sms():
+    """Test SMS sending functionality"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        phone_number = data.get('phone_number', '').strip()
+        message = data.get('message', 'Hello from MAMA-AI! 🤱 This is a test message.')
+        
+        if not phone_number:
+            return jsonify({"error": "Phone number is required"}), 400
+        
+        # Send test SMS
+        result = sms_service.send_sms(phone_number, message)
+        
+        if result:
+            return jsonify({
+                "status": "success",
+                "message": "SMS sent successfully",
+                "phone_number": phone_number,
+                "result": str(result)
+            }), 200
+        else:
+            return jsonify({
+                "status": "error",
+                "message": "Failed to send SMS"
+            }), 500
+            
+    except Exception as e:
+        app.logger.error(f"Test SMS Error: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": f"Error: {str(e)}"
+        }), 500
 
 @app.route('/send-reminders', methods=['POST'])
 def send_reminders():
@@ -533,15 +574,42 @@ def chat_interface():
     </html>
     '''
 
+@app.route('/sandbox')
+def sandbox_interface():
+    """Africa's Talking Sandbox Testing Interface"""
+    try:
+        with open('templates/sandbox.html', 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        return jsonify({"error": "Sandbox interface not found"}), 404
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
+    try:
+        db_status = "connected" if db.engine.execute("SELECT 1").scalar() else "disconnected"
+    except:
+        db_status = "disconnected"
+    
+    at_status = "configured" if username and api_key and api_key != 'test_api_key_for_development' else "not_configured"
+    
     return jsonify({
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
         "services": {
-            "database": "connected" if db.engine.execute("SELECT 1").scalar() else "disconnected",
-            "africastalking": "configured" if username and api_key else "not_configured"
+            "database": db_status,
+            "africastalking": at_status,
+            "environment": environment,
+            "username": username,
+            "shortcode": os.getenv('AFRICASTALKING_SHORTCODE', 'Not set')
+        },        "endpoints": {
+            "chat": "/chat",
+            "sms_callback": "/sms", 
+            "ussd_callback": "/ussd",
+            "delivery_report": "/delivery-report",
+            "test_sms": "/test-sms",
+            "chat_interface": "/chat-interface",
+            "sandbox": "/sandbox"
         }
     })
 

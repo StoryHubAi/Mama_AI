@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAMA-AI Africa's Talking Sandbox</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .status-bar {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .status-online {
+            background: #28a745;
+            box-shadow: 0 0 0 3px rgba(40,167,69,0.2);
+        }
+        
+        .status-sandbox {
+            background: #ffc107;
+            box-shadow: 0 0 0 3px rgba(255,193,7,0.2);
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .panel {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        
+        .panel-header {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .panel-icon {
+            font-size: 1.5em;
+        }
+        
+        .panel-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .panel-content {
+            padding: 20px;
+        }
+        
+        .phone-simulator {
+            background: #2c3e50;
+            border-radius: 25px;
+            padding: 10px;
+            max-width: 300px;
+            margin: 0 auto;
+            position: relative;
+        }
+        
+        .phone-screen {
+            background: #000;
+            border-radius: 20px;
+            padding: 15px;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            min-height: 400px;
+            position: relative;
+        }
+        
+        .ussd-header {
+            color: #fff;
+            background: #333;
+            padding: 8px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 12px;
+        }
+        
+        .ussd-content {
+            white-space: pre-wrap;
+            line-height: 1.4;
+        }
+        
+        .ussd-input {
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            right: 15px;
+            background: #333;
+            color: #0f0;
+            border: 1px solid #555;
+            border-radius: 5px;
+            padding: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        
+        .sms-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 15px;
+            background: #f8f9fa;
+        }
+        
+        .sms-message {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            position: relative;
+        }
+        
+        .sms-message.incoming {
+            border-left: 4px solid #28a745;
+        }
+        
+        .sms-message.outgoing {
+            border-left: 4px solid #007bff;
+        }
+        
+        .sms-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+            color: #6c757d;
+        }
+        
+        .sms-body {
+            color: #495057;
+            line-height: 1.5;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #495057;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+        }
+        
+        .form-textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn:hover {
+            background: #5a6fd8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102,126,234,0.3);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .btn-success {
+            background: #28a745;
+        }
+        
+        .btn-success:hover {
+            background: #218838;
+        }
+        
+        .btn-warning {
+            background: #ffc107;
+            color: #333;
+        }
+        
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+        
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .quick-action {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .quick-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        
+        .quick-action-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        .log-container {
+            background: #1a1a1a;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .status-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .status-item {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤱 MAMA-AI Sandbox</h1>
+            <p>Africa's Talking Integration Testing Environment</p>
+        </div>
+        
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-indicator status-online"></div>
+                <span><strong>Server:</strong> Online</span>
+            </div>
+            <div class="status-item">
+                <div class="status-indicator status-sandbox"></div>
+                <span><strong>Environment:</strong> Sandbox</span>
+            </div>
+            <div class="status-item">
+                <span><strong>Username:</strong> mama_ai</span>
+            </div>
+            <div class="status-item">
+                <span><strong>Shortcode:</strong> 985</span>
+            </div>
+            <div class="status-item">
+                <span><strong>USSD Code:</strong> *123#</span>
+            </div>
+        </div>
+        
+        <div class="quick-actions">
+            <div class="quick-action" onclick="testEmergencyScenario()">
+                <div class="quick-action-icon">🚨</div>
+                <h3>Emergency Test</h3>
+                <p>Test emergency detection</p>
+            </div>
+            <div class="quick-action" onclick="testPregnancyAdvice()">
+                <div class="quick-action-icon">🤰</div>
+                <h3>Pregnancy Advice</h3>
+                <p>Test general advice</p>
+            </div>
+            <div class="quick-action" onclick="testKiswahili()">
+                <div class="quick-action-icon">🗣️</div>
+                <h3>Kiswahili Test</h3>
+                <p>Test local language</p>
+            </div>
+            <div class="quick-action" onclick="testUSSD()">
+                <div class="quick-action-icon">📞</div>
+                <h3>USSD Menu</h3>
+                <p>Test USSD interface</p>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-icon">📱</div>
+                    <div class="panel-title">SMS Testing</div>
+                </div>
+                <div class="panel-content">
+                    <div class="form-group">
+                        <label class="form-label">From Phone Number</label>
+                        <input type="tel" id="smsFromPhone" class="form-input" value="+254700000001" placeholder="+254700000000">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Message</label>
+                        <textarea id="smsMessage" class="form-input form-textarea" placeholder="Type your message here...">I'm experiencing morning sickness and nausea. What should I do?</textarea>
+                    </div>
+                    <button class="btn" onclick="sendTestSMS()">
+                        📤 Send SMS
+                    </button>
+                    <button class="btn btn-secondary" onclick="clearSMSHistory()">
+                        🗑️ Clear History
+                    </button>
+                    
+                    <div class="sms-container" id="smsHistory">
+                        <!-- SMS messages will appear here -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-icon">📞</div>
+                    <div class="panel-title">USSD Simulator</div>
+                </div>
+                <div class="panel-content">
+                    <div class="phone-simulator">
+                        <div class="phone-screen">
+                            <div class="ussd-header">USSD Session - *123#</div>
+                            <div class="ussd-content" id="ussdContent">
+Welcome to MAMA-AI!
+
+1. Chat with AI Assistant
+2. Schedule Appointment
+3. Health Tips
+4. Emergency Help
+5. Language Settings
+
+Reply with a number...
+                            </div>
+                            <input type="text" class="ussd-input" id="ussdInput" placeholder="Enter choice..." maxlength="10">
+                        </div>
+                    </div>
+                    <div style="margin-top: 20px; text-align: center;">
+                        <button class="btn" onclick="sendUSSDInput()">
+                            📞 Send USSD
+                        </button>
+                        <button class="btn btn-secondary" onclick="resetUSSD()">
+                            🔄 Reset Session
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-icon">📋</div>
+                <div class="panel-title">System Logs</div>
+            </div>
+            <div class="panel-content">
+                <div class="log-container" id="systemLogs">
+[2025-05-27 18:45:00] ✅ Africa's Talking initialized successfully
+[2025-05-27 18:45:00] 📡 Sandbox environment activated
+[2025-05-27 18:45:00] 🎯 Username: mama_ai, Shortcode: 985
+[2025-05-27 18:45:00] 🔄 MAMA-AI services started
+[2025-05-27 18:45:00] 📱 SMS/USSD webhooks ready
+[2025-05-27 18:45:00] 🤖 AI service initialized with emergency detection
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ussdSessionId = 'session_' + Date.now();
+        let ussdText = '';
+        
+        function addLog(message) {
+            const logs = document.getElementById('systemLogs');
+            const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+            logs.textContent += `\n[${timestamp}] ${message}`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+        
+        function addSMSMessage(from, message, type = 'incoming') {
+            const container = document.getElementById('smsHistory');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `sms-message ${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            const icon = type === 'incoming' ? '📩' : '📤';
+            
+            messageDiv.innerHTML = `
+                <div class="sms-header">
+                    <span>${icon} ${type === 'incoming' ? 'From' : 'To'}: ${from}</span>
+                    <span>${timestamp}</span>
+                </div>
+                <div class="sms-body">${message}</div>
+            `;
+            
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        async function sendTestSMS() {
+            const fromPhone = document.getElementById('smsFromPhone').value;
+            const message = document.getElementById('smsMessage').value;
+            
+            if (!fromPhone || !message) {
+                alert('Please fill in both phone number and message');
+                return;
+            }
+            
+            addLog(`📤 Sending SMS from ${fromPhone}`);
+            addSMSMessage(fromPhone, message, 'incoming');
+            
+            try {
+                // Simulate incoming SMS
+                const response = await fetch('/sms', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `from=${encodeURIComponent(fromPhone)}&to=985&text=${encodeURIComponent(message)}&date=${new Date().toISOString()}`
+                });
+                
+                const result = await response.json();
+                addLog(`✅ SMS processed: ${result.status}`);
+                
+                // Simulate AI response (in real scenario, this would be sent back via SMS)
+                setTimeout(() => {
+                    let aiResponse = "Thank you for contacting MAMA-AI. ";
+                    
+                    if (message.toLowerCase().includes('emergency') || 
+                        message.toLowerCase().includes('bleeding') || 
+                        message.toLowerCase().includes('pain') ||
+                        message.toLowerCase().includes('headache')) {
+                        aiResponse += "🚨 This seems urgent. Please contact your healthcare provider immediately or call emergency services if needed. ";
+                    }
+                    
+                    if (message.toLowerCase().includes('morning sickness') || 
+                        message.toLowerCase().includes('nausea')) {
+                        aiResponse += "For morning sickness: Try eating small, frequent meals, ginger tea, and avoid strong smells. Rest when possible.";
+                    } else if (message.toLowerCase().includes('movement') || 
+                               message.toLowerCase().includes('kick')) {
+                        aiResponse += "Baby movements should be felt regularly after 20 weeks. If you notice decreased movement, contact your doctor.";
+                    } else {
+                        aiResponse += "I'm here to help with your pregnancy journey. Feel free to ask about symptoms, nutrition, or appointments.";
+                    }
+                    
+                    addSMSMessage('985', aiResponse, 'outgoing');
+                    addLog(`🤖 AI response sent to ${fromPhone}`);
+                }, 2000);
+                
+            } catch (error) {
+                addLog(`❌ SMS error: ${error.message}`);
+            }
+        }
+        
+        async function sendUSSDInput() {
+            const input = document.getElementById('ussdInput').value;
+            const content = document.getElementById('ussdContent');
+            
+            if (!input) return;
+            
+            ussdText += (ussdText ? '*' : '') + input;
+            addLog(`📞 USSD input: ${input}, Full text: ${ussdText}`);
+            
+            try {
+                const response = await fetch('/ussd', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `sessionId=${ussdSessionId}&serviceCode=*123%23&phoneNumber=%2B254700000001&text=${encodeURIComponent(ussdText)}`
+                });
+                
+                const result = await response.text();
+                content.textContent = result.replace('CON ', '').replace('END ', '');
+                
+                if (result.startsWith('END')) {
+                    addLog('📞 USSD session ended');
+                    setTimeout(resetUSSD, 3000);
+                } else {
+                    addLog('📞 USSD menu updated');
+                }
+                
+            } catch (error) {
+                addLog(`❌ USSD error: ${error.message}`);
+            }
+            
+            document.getElementById('ussdInput').value = '';
+        }
+        
+        function resetUSSD() {
+            ussdSessionId = 'session_' + Date.now();
+            ussdText = '';
+            document.getElementById('ussdContent').textContent = `Welcome to MAMA-AI!
+
+1. Chat with AI Assistant
+2. Schedule Appointment  
+3. Health Tips
+4. Emergency Help
+5. Language Settings
+
+Reply with a number...`;
+            document.getElementById('ussdInput').value = '';
+            addLog('🔄 USSD session reset');
+        }
+        
+        function clearSMSHistory() {
+            document.getElementById('smsHistory').innerHTML = '';
+            addLog('🗑️ SMS history cleared');
+        }
+        
+        function testEmergencyScenario() {
+            document.getElementById('smsFromPhone').value = '+254700000001';
+            document.getElementById('smsMessage').value = 'EMERGENCY: I have severe bleeding and strong abdominal pain. Please help!';
+            addLog('🚨 Emergency scenario loaded');
+        }
+        
+        function testPregnancyAdvice() {
+            document.getElementById('smsFromPhone').value = '+254700000002';
+            document.getElementById('smsMessage').value = 'I am 20 weeks pregnant. How often should I feel baby movements?';
+            addLog('🤰 Pregnancy advice scenario loaded');
+        }
+        
+        function testKiswahili() {
+            document.getElementById('smsFromPhone').value = '+254700000003';
+            document.getElementById('smsMessage').value = 'Habari, nina mimba ya miezi mitatu. Ninahisi kichefuchefu asubuhi. Nifanye nini?';
+            addLog('🗣️ Kiswahili scenario loaded');
+        }
+        
+        function testUSSD() {
+            resetUSSD();
+            addLog('📞 USSD test mode activated');
+        }
+        
+        // Handle Enter key in USSD input
+        document.getElementById('ussdInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendUSSDInput();
+            }
+        });
+        
+        // Auto-resize SMS textarea
+        document.getElementById('smsMessage').addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+        });
+        
+        // Initial log
+        addLog('🎯 Sandbox interface loaded successfully');
+    </script>
+</body>
+</html>
