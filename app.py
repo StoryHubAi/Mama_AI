@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from src.models import db, User, Pregnancy, Appointment, Reminder
 from src.services.ussd_service import USSDService
 from src.services.sms_service import SMSService
+from src.services.voice_service import VoiceService
 from src.services.ai_service import AIService
 from src.utils.language_utils import LanguageDetector
 
@@ -47,6 +48,7 @@ else:
 # Initialize services
 ussd_service = USSDService()
 sms_service = SMSService()
+voice_service = VoiceService()
 ai_service = AIService()
 language_detector = LanguageDetector()
 
@@ -621,6 +623,182 @@ def not_found(error):
 def internal_error(error):
     db.session.rollback()
     return jsonify({"error": "Internal server error"}), 500
+
+# =============================================================================
+# VOICE API ENDPOINTS
+# =============================================================================
+
+@app.route('/voice', methods=['POST'])
+def voice_callback():
+    """Handle incoming voice calls from Africa's Talking"""
+    try:
+        # Get voice call parameters
+        session_id = request.form.get('sessionId')
+        phone_number = request.form.get('phoneNumber')
+        is_active = request.form.get('isActive')
+        
+        app.logger.info(f"Voice call - Session: {session_id}, Phone: {phone_number}, Active: {is_active}")
+        
+        # Handle the incoming call
+        response = voice_service.handle_incoming_call(
+            session_id=session_id,
+            phone_number=phone_number,
+            is_active=is_active
+        )
+        
+        return response, 200, {'Content-Type': 'application/xml'}
+        
+    except Exception as e:
+        app.logger.error(f"Voice callback error: {str(e)}")
+        return voice_service._create_error_response(), 200, {'Content-Type': 'application/xml'}
+
+@app.route('/voice/dtmf', methods=['POST'])
+def voice_dtmf():
+    """Handle DTMF input during voice calls"""
+    try:
+        session_id = request.form.get('sessionId')
+        phone_number = request.form.get('phoneNumber')
+        dtmf_digits = request.form.get('dtmfDigits')
+        
+        app.logger.info(f"DTMF input - Session: {session_id}, Phone: {phone_number}, Digits: {dtmf_digits}")
+        
+        # Process DTMF input
+        response = voice_service.handle_dtmf_input(
+            session_id=session_id,
+            phone_number=phone_number,
+            dtmf_digits=dtmf_digits
+        )
+        
+        return response, 200, {'Content-Type': 'application/xml'}
+        
+    except Exception as e:
+        app.logger.error(f"DTMF error: {str(e)}")
+        return voice_service._create_error_response(), 200, {'Content-Type': 'application/xml'}
+
+@app.route('/voice/pregnancy', methods=['POST'])
+def voice_pregnancy():
+    """Handle pregnancy tracking voice input"""
+    try:
+        session_id = request.form.get('sessionId')
+        phone_number = request.form.get('phoneNumber')
+        dtmf_digits = request.form.get('dtmfDigits')
+        
+        # Get user
+        clean_phone = voice_service._clean_phone_number(phone_number)
+        user = voice_service._get_or_create_user(clean_phone)
+        
+        # Process pregnancy-specific input
+        response = voice_service._process_pregnancy_input(dtmf_digits, user, session_id)
+        
+        return response, 200, {'Content-Type': 'application/xml'}
+        
+    except Exception as e:
+        app.logger.error(f"Voice pregnancy error: {str(e)}")
+        return voice_service._create_error_response(), 200, {'Content-Type': 'application/xml'}
+
+@app.route('/voice/health', methods=['POST'])
+def voice_health():
+    """Handle health check voice input"""
+    try:
+        session_id = request.form.get('sessionId')
+        phone_number = request.form.get('phoneNumber')
+        dtmf_digits = request.form.get('dtmfDigits')
+        
+        # Get user
+        clean_phone = voice_service._clean_phone_number(phone_number)
+        user = voice_service._get_or_create_user(clean_phone)
+        
+        # Process health-specific input
+        response = voice_service._process_health_input(dtmf_digits, user, session_id)
+        
+        return response, 200, {'Content-Type': 'application/xml'}
+        
+    except Exception as e:
+        app.logger.error(f"Voice health error: {str(e)}")
+        return voice_service._create_error_response(), 200, {'Content-Type': 'application/xml'}
+
+@app.route('/voice/appointments', methods=['POST'])
+def voice_appointments():
+    """Handle appointments voice input"""
+    try:
+        session_id = request.form.get('sessionId')
+        phone_number = request.form.get('phoneNumber')
+        dtmf_digits = request.form.get('dtmfDigits')
+        
+        # Get user
+        clean_phone = voice_service._clean_phone_number(phone_number)
+        user = voice_service._get_or_create_user(clean_phone)
+        
+        # Process appointments-specific input
+        response = voice_service._process_appointments_input(dtmf_digits, user, session_id)
+        
+        return response, 200, {'Content-Type': 'application/xml'}
+        
+    except Exception as e:
+        app.logger.error(f"Voice appointments error: {str(e)}")
+        return voice_service._create_error_response(), 200, {'Content-Type': 'application/xml'}
+
+@app.route('/voice/emergency', methods=['POST'])
+def voice_emergency():
+    """Handle emergency voice input with immediate response"""
+    try:
+        session_id = request.form.get('sessionId')
+        phone_number = request.form.get('phoneNumber')
+        dtmf_digits = request.form.get('dtmfDigits')
+        
+        # Get user
+        clean_phone = voice_service._clean_phone_number(phone_number)
+        user = voice_service._get_or_create_user(clean_phone)
+        
+        # Process emergency input with high priority
+        response = voice_service._process_emergency_input(dtmf_digits, user, session_id)
+        
+        return response, 200, {'Content-Type': 'application/xml'}
+        
+    except Exception as e:
+        app.logger.error(f"Voice emergency error: {str(e)}")
+        return voice_service._create_error_response(), 200, {'Content-Type': 'application/xml'}
+
+@app.route('/voice/make-call', methods=['POST'])
+def make_outbound_call():
+    """Endpoint to make outbound voice calls (for reminders, emergencies)"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        phone_number = data.get('phone_number', '').strip()
+        message = data.get('message', '').strip()
+        voice_type = data.get('voice_type', 'woman')
+        
+        if not phone_number or not message:
+            return jsonify({"error": "Phone number and message are required"}), 400
+        
+        # Make the outbound call
+        result = voice_service.make_outbound_call(phone_number, message, voice_type)
+        
+        if result:
+            return jsonify({
+                "status": "success",
+                "message": "Call initiated successfully",
+                "result": str(result)
+            }), 200
+        else:
+            return jsonify({
+                "status": "error",
+                "message": "Failed to initiate call"
+            }), 500
+            
+    except Exception as e:
+        app.logger.error(f"Outbound call error: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": f"Error: {str(e)}"
+        }), 500
+
+# =============================================================================
+# END VOICE API ENDPOINTS
+# =============================================================================
 
 if __name__ == '__main__':
     with app.app_context():
