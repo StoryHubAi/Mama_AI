@@ -30,6 +30,10 @@ logger = logging.getLogger(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///mama_ai.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 300,
+}
 
 # Production configuration
 if os.getenv('FLASK_ENV') == 'production':
@@ -120,9 +124,9 @@ def ussd_callback():
 def sms_callback():
     """Handle incoming SMS from Africa's Talking with enhanced logging"""
     try:
-        # Get SMS parameters
+        # Get SMS parameters from form data (Africa's Talking sends form data)
         from_number = request.form.get('from')
-        to_number = request.form.get('to')
+        to_number = request.form.get('to') 
         text = request.form.get('text')
         date = request.form.get('date')
         
@@ -153,25 +157,29 @@ def sms_callback():
         
     except Exception as e:
         app.logger.error(f"SMS Error: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        print(f"❌ SMS Error: {str(e)}")
+        return "", 500
 
 @app.route('/delivery-report', methods=['POST'])
 def delivery_report():
     """Handle SMS delivery reports"""
     try:
-        # Get delivery report parameters
+        # Get delivery report parameters from form data
         message_id = request.form.get('id')
         status = request.form.get('status')
         phone_number = request.form.get('phoneNumber')
         
         # Log delivery status
+        print(f"📊 Delivery report - ID: {message_id}, Status: {status}, Phone: {phone_number}")
         app.logger.info(f"Delivery report - ID: {message_id}, Status: {status}, Phone: {phone_number}")
         
-        return jsonify({"status": "received"}), 200
+        # Return 200 status to Africa's Talking
+        return "", 200
         
     except Exception as e:
-        app.logger.error(f"Delivery report error: {str(e)}")
-        return jsonify({"status": "error"}), 500
+        app.logger.error(f"Delivery Report Error: {str(e)}")
+        print(f"❌ Delivery Report Error: {str(e)}")
+        return "", 500
 
 @app.route('/test-sms', methods=['POST'])
 def test_sms():
@@ -265,6 +273,7 @@ def test_sms_response():
             "status": "error",
             "timestamp": datetime.utcnow().isoformat()
         }), 500
+
 
 @app.route('/test-dashboard')
 def test_dashboard():

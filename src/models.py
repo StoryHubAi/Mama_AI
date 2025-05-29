@@ -20,6 +20,7 @@ class User(db.Model):
     pregnancies = db.relationship('Pregnancy', backref='user', lazy=True)
     appointments = db.relationship('Appointment', backref='user', lazy=True)
     reminders = db.relationship('Reminder', backref='user', lazy=True)
+    conversations = db.relationship('Conversation', backref='user', lazy=True)
     
     def __repr__(self):
         return f'<User {self.phone_number}>'
@@ -102,3 +103,20 @@ class EmergencyAlert(db.Model):
     
     def __repr__(self):
         return f'<EmergencyAlert {self.id} - {self.alert_type}>'
+
+class Conversation(db.Model):
+    __tablename__ = 'conversations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    session_id = db.Column(db.String(100))  # For grouping related messages
+    channel = db.Column(db.String(10))  # SMS, USSD
+    user_message = db.Column(db.Text, nullable=False)
+    ai_response = db.Column(db.Text, nullable=False)
+    intent_detected = db.Column(db.String(50))  # symptoms, appointment, emergency, etc.
+    confidence_score = db.Column(db.Float)
+    language_detected = db.Column(db.String(5))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<Conversation {self.id} - User {self.user_id}>'

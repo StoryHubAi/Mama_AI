@@ -1,31 +1,14 @@
 import os
-import ssl
 import africastalking
 from datetime import datetime
 from src.models import db, User, MessageLog
 from src.services.ai_service import AIService
 
-# Fix SSL issues for Africa's Talking sandbox
-ssl._create_default_https_context = ssl._create_unverified_context
-
 class SMSService:
     def __init__(self):
-        # Initialize Africa's Talking properly
-        username = os.getenv('AFRICASTALKING_USERNAME', 'sandbox')
-        api_key = os.getenv('AFRICASTALKING_API_KEY')
-        
-        print(f"🔑 Initializing SMS Service with:")
-        print(f"   Username: {username}")
-        print(f"   API Key: {api_key[:20]}..." if api_key else "   API Key: None")
-        
-        if api_key and api_key != 'test_api_key_for_development':
-            africastalking.initialize(username, api_key)
-            print(f"✅ SMS Service initialized successfully")
-        else:
-            print("⚠️ SMS Service: No valid API key found")
         self.sms = africastalking.SMS
         self.ai_service = AIService()
-        self.shortcode = os.getenv('AFRICASTALKING_SHORTCODE', '15629')  # Your Africa's Talking shortcode
+        self.shortcode = '15629'  # Your Africa's Talking shortcode
     
     def send_sms(self, phone_number, message, sender_id=None):
         """Send SMS using Africa's Talking"""
@@ -39,9 +22,8 @@ class SMSService:
             
             print(f"📤 Sending SMS to {clean_phone}")
             print(f"📝 Message: {message[:100]}...")
-            print(f"🏷️ Sender: {sender_id}")
             
-            # Send SMS using Africa's Talking Python SDK proper format
+            # Send SMS using Africa's Talking format
             response = self.sms.send(
                 message=message,
                 recipients=[clean_phone],
@@ -59,17 +41,7 @@ class SMSService:
             print(f"❌ Error sending SMS: {str(e)}")
             print(f"   To: {phone_number}")
             print(f"   Message: {message[:50]}...")
-            
-            # Try alternative format if first attempt fails
-            try:
-                print("🔄 Retrying with alternative format...")
-                response = self.sms.send(message, [clean_phone], sender_id)
-                print(f"✅ SMS sent successfully on retry to {clean_phone}")
-                self._log_message(clean_phone, "SMS", "outgoing", message)
-                return response
-            except Exception as e2:
-                print(f"❌ Retry also failed: {str(e2)}")
-                return None
+            return None
 
     def handle_incoming_sms(self, from_number, to_number, text, received_at):
         """Handle incoming SMS messages with AI-ONLY responses"""
@@ -131,7 +103,7 @@ Context:
 - First time user: {'Yes' if not user.name else 'No'}
 
 Instructions:
-- If this looks like a greeting/sHey, Cortana. Hey, Cortana. Who are? This one at the top. This is another one. So when you. I just clicked the one on the top to achieve this. 0 pressure. Machine. Something. OK different people. Hey, Cortana capital letter A. Is that OK? It's totally capital. Hey, Cortana. Hey, Cortana. But but. 384. 57. 1000, 7000. And it's crazy, but. SMS to. It's OK to be the United Party positive. Access. To a new that's in a that's in a new way. Hey. Cortana. Hey, Cortana. Hello. Pressure. Play. I think I call master. Very nice. To ensure you capture the details. tart request, provide a warm welcome and explain how to use the service
+- If this looks like a greeting/start request, provide a warm welcome and explain how to use the service
 - If this is a health question, provide helpful medical advice
 - If they're asking for help/menu, explain they can ask any health questions directly
 - Always respond as MAMA-AI, the maternal health assistant

@@ -1,31 +1,14 @@
 import os
-import ssl
 import africastalking
 from datetime import datetime
 from src.models import db, User, MessageLog
 from src.services.ai_service import AIService
 
-# Fix SSL issues for Africa's Talking sandbox
-ssl._create_default_https_context = ssl._create_unverified_context
-
 class SMSService:
     def __init__(self):
-        # Initialize Africa's Talking properly
-        username = os.getenv('AFRICASTALKING_USERNAME', 'sandbox')
-        api_key = os.getenv('AFRICASTALKING_API_KEY')
-        
-        print(f"🔑 Initializing SMS Service with:")
-        print(f"   Username: {username}")
-        print(f"   API Key: {api_key[:20]}..." if api_key else "   API Key: None")
-        
-        if api_key and api_key != 'test_api_key_for_development':
-            africastalking.initialize(username, api_key)
-            print(f"✅ SMS Service initialized successfully")
-        else:
-            print("⚠️ SMS Service: No valid API key found")
         self.sms = africastalking.SMS
         self.ai_service = AIService()
-        self.shortcode = os.getenv('AFRICASTALKING_SHORTCODE', '15629')  # Your Africa's Talking shortcode
+        self.shortcode = '15629'  # Your Africa's Talking shortcode
     
     def send_sms(self, phone_number, message, sender_id=None):
         """Send SMS using Africa's Talking"""
@@ -33,44 +16,27 @@ class SMSService:
             # Clean phone number
             clean_phone = self._clean_phone_number(phone_number)
             
-            # Use your shortcode as sender
+            # Use your shortcode
             if not sender_id:
                 sender_id = self.shortcode
             
-            print(f"📤 Sending SMS to {clean_phone}")
-            print(f"📝 Message: {message[:100]}...")
-            print(f"🏷️ Sender: {sender_id}")
-            
-            # Send SMS using Africa's Talking Python SDK proper format
+            # Send SMS
             response = self.sms.send(
                 message=message,
                 recipients=[clean_phone],
                 sender_id=sender_id
             )
             
-            # Log the outgoing SMS
+            # Log the SMS
             self._log_message(clean_phone, "SMS", "outgoing", message)
             
-            print(f"✅ SMS sent successfully to {clean_phone}")
-            print(f"📊 Response: {response}")
+            print(f"✅ SMS sent to {clean_phone}: {message[:50]}...")
             return response
             
         except Exception as e:
             print(f"❌ Error sending SMS: {str(e)}")
-            print(f"   To: {phone_number}")
-            print(f"   Message: {message[:50]}...")
-            
-            # Try alternative format if first attempt fails
-            try:
-                print("🔄 Retrying with alternative format...")
-                response = self.sms.send(message, [clean_phone], sender_id)
-                print(f"✅ SMS sent successfully on retry to {clean_phone}")
-                self._log_message(clean_phone, "SMS", "outgoing", message)
-                return response
-            except Exception as e2:
-                print(f"❌ Retry also failed: {str(e2)}")
-                return None
-
+            return None
+    
     def handle_incoming_sms(self, from_number, to_number, text, received_at):
         """Handle incoming SMS messages with AI-ONLY responses"""
         try:
@@ -86,26 +52,19 @@ class SMSService:
             print(f"📱 Received SMS from {clean_phone}: {text}")
             
             # Process ALL messages with AI (no special commands except STOP)
-            ai_response = self._process_sms_with_ai(text.strip(), user)
+            response = self._process_sms_with_ai(text.strip(), user)
             
-            if ai_response:
-                # Send response SMS back to user
-                sms_result = self.send_sms(clean_phone, ai_response)
-                
-                if sms_result:
-                    print(f"🤖 AI Response sent successfully: {ai_response[:50]}...")
-                    return {"status": "processed", "response_sent": True, "message": "SMS processed and response sent"}
-                else:
-                    print(f"❌ Failed to send SMS response")
-                    return {"status": "processed", "response_sent": False, "message": "SMS processed but response failed"}
-            else:
-                print(f"❌ No AI response generated")
-                return {"status": "error", "response_sent": False, "message": "No AI response generated"}
+            if response:
+                # Send response SMS
+                self.send_sms(clean_phone, response)
+                print(f"🤖 AI Response sent: {response[:50]}...")
+            
+            return {"status": "processed", "response_sent": bool(response)}
             
         except Exception as e:
             print(f"❌ Error handling incoming SMS: {str(e)}")
             return {"status": "error", "message": str(e)}
-
+    
     def _process_sms_with_ai(self, text, user):
         """Process SMS using AI service - EVERYTHING goes to AI"""
         try:
@@ -131,7 +90,7 @@ Context:
 - First time user: {'Yes' if not user.name else 'No'}
 
 Instructions:
-- If this looks like a greeting/sHey, Cortana. Hey, Cortana. Who are? This one at the top. This is another one. So when you. I just clicked the one on the top to achieve this. 0 pressure. Machine. Something. OK different people. Hey, Cortana capital letter A. Is that OK? It's totally capital. Hey, Cortana. Hey, Cortana. But but. 384. 57. 1000, 7000. And it's crazy, but. SMS to. It's OK to be the United Party positive. Access. To a new that's in a that's in a new way. Hey. Cortana. Hey, Cortana. Hello. Pressure. Play. I think I call master. Very nice. To ensure you capture the details. tart request, provide a warm welcome and explain how to use the service
+- If this looks like a greeting/start request, provide a warm welcome and explain how to use the service
 - If this is a health question, provide helpful medical advice
 - If they're asking for help/menu, explain they can ask any health questions directly
 - Always respond as MAMA-AI, the maternal health assistant
@@ -140,10 +99,10 @@ Instructions:
 """
             
             ai_response = self.ai_service.chat_with_ai(
-                context_message,
-                user,
-                session_id,
-                'SMS'
+                user_message=context_message,
+                user=user,
+                session_id=session_id,
+                channel='SMS'
             )
             
             return ai_response
@@ -155,7 +114,7 @@ Instructions:
                 return self.ai_service._get_error_response(user.preferred_language or 'en', user)
             except:
                 return "MAMA-AI error. Text any health question to try again. 🤱"
-
+    
     def _get_ai_stop_response(self, user):
         """Get AI-powered unsubscribe confirmation"""
         try:
@@ -178,7 +137,7 @@ Keep under 160 characters.
                 return "Umejitoa MAMA-AI. Andika START kwa 15629 kurudi. Dharura: enda hospitali. 🤱"
             else:
                 return "Unsubscribed from MAMA-AI. Text START to 15629 to resubscribe. Emergencies: go to hospital. 🤱"
-
+    
     def _get_or_create_user(self, phone_number):
         """Get or create user from database"""
         try:
@@ -202,7 +161,7 @@ Keep under 160 characters.
             print(f"❌ Error getting/creating user: {str(e)}")
             db.session.rollback()
             raise
-
+    
     def _clean_phone_number(self, phone_number):
         """Clean and format phone number"""
         if not phone_number:
@@ -220,7 +179,7 @@ Keep under 160 characters.
             clean = '254' + clean
         
         return '+' + clean
-
+    
     def _log_message(self, phone_number, msg_type, direction, content):
         """Log message to database"""
         try:
@@ -228,7 +187,8 @@ Keep under 160 characters.
                 phone_number=phone_number,
                 message_type=msg_type,
                 direction=direction,
-                content=content
+                content=content,
+                timestamp=datetime.utcnow()
             )
             db.session.add(message_log)
             db.session.commit()
