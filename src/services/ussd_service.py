@@ -331,45 +331,40 @@ class USSDService:
             return f"CON {conversation_display}"
             
         except Exception as e:
-            print(f"❌ AI Chat Error: {str(e)}")
-            # If AI completely fails, inform user
+            print(f"❌ AI Chat Error: {str(e)}")            # If AI completely fails, inform user
             if lang == 'sw':
                 return "END AI haiwezi kufanya kazi sasa. Enda hospitalini kama ni dharura."
             else:
                 return "END AI unavailable now. Go to hospital if emergency."
-                
+    
     def _build_conversation_display(self, user_message, ai_response, lang):
-        """Build a display showing AI response within USSD character limits with smart formatting"""
+        """Build a display showing FULL AI response within USSD character limits"""
         
-        # USSD limits: Standard is 182 chars, but we'll use 160 to be safe
-        max_total_length = 160
+        # USSD limits: Use maximum space (182 chars standard, push to 180)
+        max_total_length = 180
         
-        # Set up continuation prompts based on language
+        # Set up minimal continuation prompts to maximize response space
         if lang == 'sw':
-            continue_prompt = "Swali? 0=Ondoka"
+            continue_prompt = "0=Ondoka"
             response_prefix = "🤖 "
         else:
-            continue_prompt = "More? 0=Exit"
+            continue_prompt = "0=Exit"
             response_prefix = "🤖 "
         
-        # Calculate space for AI response (reserve space for prefix and continuation)
+        # Calculate maximum space for AI response
         prompt_space = len(f"\n\n{continue_prompt}")
         prefix_space = len(response_prefix)
-        available_space = max_total_length - prefix_space - prompt_space - 3  # -3 for safety
+        available_space = max_total_length - prefix_space - prompt_space - 1  # -1 minimal safety
         
-        # Ensure minimum viable space
-        if available_space < 40:
-            # Ultra-compact mode
-            available_space = 130
-            continue_prompt = "0=Exit"
-            response_prefix = ""
+        # Clean the AI response thoroughly
+        cleaned_response = self._clean_ai_response(ai_response)
         
-        # Use optimized response formatting for USSD
-        optimized_response = self._optimize_ai_response_for_ussd(ai_response, lang)
-        
-        # Final truncation if still too long
-        if len(optimized_response) > available_space:
-            optimized_response = self._smart_truncate_response(optimized_response, available_space, lang)
+        # If response fits completely, use it
+        if len(cleaned_response) <= available_space:
+            optimized_response = cleaned_response
+        else:
+            # Smart truncation that preserves maximum medical content
+            optimized_response = self._preserve_max_content(cleaned_response, available_space, lang)
         
         return f"{response_prefix}{optimized_response}\n\n{continue_prompt}"
     
@@ -536,118 +531,194 @@ class USSDService:
             truncated_words = words[:-1]
             result = ' '.join(truncated_words)
             if len(result) < max_length - 3:
-                return result + "..."
-        
+                return result + "..."        
         # Strategy 4: Hard truncation with ellipsis
         return response[:max_length-3] + "..."
     
-    def _handle_emergency(self, user):
-        """Handle emergency situations with immediate guidance"""
-        lang = user.preferred_language
+    def _preserve_max_content(self, response, max_length, lang):
+        """Preserve maximum content while fitting USSD limits, prioritizing critical info"""
+        if len(response) <= max_length:
+            return response
         
-        if lang == 'sw':
-            emergency_msg = (
-                "🚨 MSAADA WA HARAKA 🚨\n\n"
-                "PIGA SASA HIVI:\n"
-                "• 911 - Dharura\n"
-                "• 999 - Ambulensi\n"
-                "• 0700000000 - Hospitali\n\n"
-                "Dalili za hatari:\n"
-                "• Damu nyingi\n"
-                "• Maumivu makali\n"
-                "• Kupoteza fahamu\n"
-                "• Mwanga mkali\n\n"
-                "ENDA HOSPITALI SASA!"
-            )
-        else:
-            emergency_msg = (
-                "🚨 EMERGENCY HELP 🚨\n\n"
-                "CALL IMMEDIATELY:\n"
-                "• 911 - Emergency\n"
-                "• 999 - Ambulance\n"
-                "• 0700000000 - Hospital\n\n"
-                "Danger signs:\n"
-                "• Heavy bleeding\n"
-                "• Severe pain\n"
-                "• Loss of consciousness\n"
-                "• Bright flashes\n\n"
-                "GO TO HOSPITAL NOW!"
-            )
+        # First, check if response contains critical information that must be preserved
+        critical_patterns = [
+            r'\b0707861787\b',  # Emergency contact
+            r'\bemergency\b',   # Emergency keywords
+            r'\burgent\b',
+            r'\bimmediately\b',
+            r'\bhospital\b',
+            r'\bdoctor\b',
+            r'\bprenatal vitamins\b',  # Important medical terms
+            r'\bfolic acid\b',
+            r'\biron\b',
+            r'\bcalcium\b'
+        ]
         
-        # Trigger emergency alert
-        self._trigger_emergency_alert(user)
+        # Strategy 1: If response contains critical info, try to preserve it
+        import re
+        critical_info = []
+        for pattern in critical_patterns:
+            matches = re.findall(pattern, response, re.IGNORECASE)
+            critical_info.extend(matches)
         
-        return f"END {emergency_msg}"
+        if critical_info:
+            # Try to extract sentences containing critical information
+            sentences = response.replace('!', '.').replace('?', '.').split('.')
+            sentences = [s.strip() for s in sentences if s.strip()]
+            
+            critical_sentences = []
+            regular_sentences = []
+            
+            for sentence in sentences:
+                is_critical = any(re.search(pattern, sentence, re.IGNORECASE) for pattern in critical_patterns)
+                if is_critical:
+                    critical_sentences.append(sentence)
+                else:
+                    regular_sentences.append(sentence)
+            
+            # Build response prioritizing critical sentences
+            result = ""
+            
+            # Add critical sentences first
+            for sentence in critical_sentences:
+                test_result = f"{result} {sentence}.".strip() if result else f"{sentence}."
+                if len(test_result) <= max_length:
+                    result = test_result
+                elif not result:  # If first critical sentence is too long, truncate it smartly
+                    return self._smart_sentence_truncate(sentence, max_length)
+            
+            # Add regular sentences if space remains
+            for sentence in regular_sentences:
+                test_result = f"{result} {sentence}.".strip() if result else f"{sentence}."
+                if len(test_result) <= max_length:
+                    result = test_result
+                else:
+                    break
+            
+            if result:
+                return result
+        
+        # Strategy 2: Regular sentence-by-sentence preservation
+        sentences = response.replace('!', '.').replace('?', '.').split('.')
+        sentences = [s.strip() for s in sentences if s.strip()]
+        
+        result = ""
+        for sentence in sentences:
+            # Test if adding this sentence fits
+            test_result = f"{result} {sentence}.".strip() if result else f"{sentence}."
+            if len(test_result) <= max_length:
+                result = test_result
+            else:
+                # If we have some content, return it
+                if result:
+                    return result
+                # If first sentence is too long, truncate it intelligently
+                else:
+                    return self._smart_sentence_truncate(sentence, max_length)
+        
+        return result if result else response[:max_length]
     
-    def _get_error_response(self, user):
-        """Get error response in user's language"""
-        lang = getattr(user, 'preferred_language', 'en')
-        if lang == 'sw':
-            return "END Kuna tatizo. Jaribu tena au piga 911 kama ni dharura."        
-        else:
-            return "END There was an error. Please try again or call 911 if emergency."
+    def _smart_sentence_truncate(self, sentence, max_length):
+        """Intelligently truncate a single sentence to preserve key medical info"""
+        if len(sentence) <= max_length:
+            return sentence
+        
+        # Look for key medical terms to preserve
+        medical_keywords = [
+            'take', 'avoid', 'contact', 'doctor', 'hospital', 'emergency',
+            'rest', 'drink', 'eat', 'medicine', 'treatment', 'symptoms'
+        ]
+          # Try to find a good breaking point that keeps medical advice
+        words = sentence.split()
+        result = ""
+        
+        for word in words:
+            test_result = f"{result} {word}".strip() if result else word
+            if len(test_result) <= max_length - 3:  # Leave space for "..."
+                result = test_result
+            else:
+                break
+        
+        # Add ellipsis if we truncated
+        if len(result) < len(sentence):
+            return result + "..."
+        
+        return result
     
-    def _get_active_pregnancy(self, user):
-        """Get user's active pregnancy"""
-        return Pregnancy.query.filter_by(user_id=user.id, is_active=True).first()
+    def _log_message(self, phone_number, channel, direction, content, session_id=None):
+        """Log USSD messages to database"""
+        try:
+            # Get or create user
+            user = self._get_or_create_user(phone_number)
+            
+            # Create message log entry
+            log_entry = MessageLog(
+                user_id=user.id,
+                phone_number=phone_number,
+                channel=channel,
+                direction=direction,
+                content=content,
+                session_id=session_id,
+                created_at=datetime.utcnow()
+            )
+            
+            db.session.add(log_entry)
+            db.session.commit()
+            
+            print(f"📝 USSD Log: {direction.upper()} - {phone_number} - {content[:50]}...")
+            
+        except Exception as e:
+            print(f"❌ USSD Logging Error: {str(e)}")
+    
+    def _clean_phone_number(self, phone_number):
+        """Clean and standardize phone number format"""
+        if not phone_number:
+            return None
+        
+        # Remove any non-digit characters
+        clean_number = ''.join(filter(str.isdigit, phone_number))
+        
+        # Handle Kenyan numbers
+        if clean_number.startswith('254'):
+            return f"+{clean_number}"
+        elif clean_number.startswith('0'):
+            return f"+254{clean_number[1:]}"
+        elif len(clean_number) == 9:  # 7XXXXXXXX format
+            return f"+254{clean_number}"
+        
+        return f"+{clean_number}"
     
     def _get_or_create_user(self, phone_number):
         """Get existing user or create new one"""
-        user = User.query.filter_by(phone_number=phone_number).first()
-        if not user:
-            user = User(
-                phone_number=phone_number,
-                preferred_language=None,  # Will be set during registration
+        try:
+            user = User.query.filter_by(phone_number=phone_number).first()
+            if not user:
+                user = User(phone_number=phone_number)
+                db.session.add(user)
+                db.session.commit()
+            return user
+        except Exception as e:
+            print(f"❌ User creation error: {str(e)}")
+            db.session.rollback()
+            # Return a temporary user object for error cases
+            return User(phone_number=phone_number)
+    
+    def _get_active_pregnancy(self, user):
+        """Get user's active pregnancy record"""
+        try:
+            return Pregnancy.query.filter_by(
+                user_id=user.id,
                 is_active=True
-            )
-            db.session.add(user)
-            db.session.commit()
-        return user
-    
-    def _clean_phone_number(self, phone_number):
-        """Clean and standardize phone number"""
-        clean = ''.join(c for c in phone_number if c.isdigit() or c == '+')
-        
-        if not clean.startswith('+'):
-            if clean.startswith('0'):
-                clean = '+254' + clean[1:]
-            elif clean.startswith('254'):
-                clean = '+' + clean
-            else:
-                clean = '+254' + clean
-        
-        return clean
-    
-    def _trigger_emergency_alert(self, user):
-        """Trigger emergency alert and notifications"""
-        try:
-            from src.services.sms_service import SMSService
-            sms_service = SMSService()
-            
-            if hasattr(user, 'emergency_contact') and user.emergency_contact:
-                emergency_msg = f"EMERGENCY: {user.name or user.phone_number} has triggered an emergency alert through MAMA-AI. Please check on them immediately."
-                sms_service.send_sms(user.emergency_contact, emergency_msg)
+            ).first()
         except Exception as e:
-            print(f"Emergency alert failed: {str(e)}")
+            print(f"❌ Pregnancy query error: {str(e)}")
+            return None
     
-    def _log_message(self, phone_number, msg_type, direction, content, session_id=None):
-        """Log USSD message"""
-        try:
-            log = MessageLog(
-                phone_number=phone_number,
-                message_type=msg_type,
-                direction=direction,
-                content=content,
-                session_id=session_id
-            )
-            db.session.add(log)
-            db.session.commit()
-            
-            # Enhanced logging for debugging
-            direction_icon = "📨" if direction == "incoming" else "📤"
-            print(f"{direction_icon} USSD {direction.upper()}: {phone_number}")
-            print(f"   Content: {content[:100]}{'...' if len(content) > 100 else ''}")
-            print(f"   Length: {len(content)} chars")
-            
-        except Exception as e:
-            print(f"❌ Message logging failed: {str(e)}")
+    def _get_error_response(self, user):
+        """Get appropriate error response based on user language"""
+        lang = user.preferred_language if user and user.preferred_language else 'en'
+        
+        if lang == 'sw':
+            return "END Kuna hitilafu. Jaribu tena baadaye."
+        else:
+            return "END System error. Please try again later."
