@@ -627,3 +627,50 @@ class AIService:
         )
         db.session.add(ai_log)
         db.session.commit()
+
+    def generate_voice_response(self, user_input, user_context, conversation_history=None):
+        """Generate AI response specifically optimized for voice interactions"""
+        try:
+            # Extract user info
+            user = user_context if hasattr(user_context, 'id') else None
+            if not user:
+                # If user_context is a dict, create a minimal user object for compatibility
+                class MockUser:
+                    def __init__(self, data):
+                        self.name = data.get('name')
+                        self.phone_number = data.get('phone')
+                        self.preferred_language = data.get('language', 'en')
+                        self.id = None
+                user = MockUser(user_context)
+            
+            language = user.preferred_language or 'en'
+            
+            # Create voice-optimized prompt
+            voice_prompt = f"""
+You are MAMA-AI, a maternal health assistant responding to a voice call.
+
+User said: "{user_input}"
+
+User context:
+- Name: {user.name or 'Not provided'}
+- Language: {language}
+- Current pregnancy status: {user_context.get('pregnancy', {}) if isinstance(user_context, dict) else 'Unknown'}
+
+Voice response guidelines:
+- Keep responses conversational and natural for speech
+- Use simple, clear language
+- Limit responses to 2-3 sentences for voice clarity
+- Be warm and supportive
+- If emergency keywords detected, provide immediate guidance
+- End with a helpful question or next step
+
+Respond in {language} language (English if 'en', Kiswahili if 'sw').
+"""
+            
+            # Use the existing AI response method
+            return self.process_free_text_query(voice_prompt, user)
+            
+        except Exception as e:
+            print(f"Error generating voice response: {str(e)}")
+            fallback_msg = "I'm sorry, I didn't catch that. Could you please repeat your question?" if language == 'en' else "Samahani, sikuelewa. Je, unaweza kurudia swali lako?"
+            return fallback_msg

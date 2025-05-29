@@ -796,6 +796,67 @@ def make_outbound_call():
             "message": f"Error: {str(e)}"
         }), 500
 
+@app.route('/voice/recording/<session_id>', methods=['POST'])
+def voice_recording(session_id):
+    """Handle voice recording callbacks from Africa's Talking with speech-to-text processing"""
+    try:
+        phone_number = request.form.get('phoneNumber')
+        recording_url = request.form.get('recordingUrl')
+        duration = request.form.get('durationInSeconds', 0)
+        
+        app.logger.info(f"Voice recording - Session: {session_id}, Phone: {phone_number}, Recording: {recording_url}, Duration: {duration}s")
+        
+        # Get user to determine language preference
+        from src.services.voice_service import VoiceService
+        temp_voice_service = VoiceService()
+        clean_phone = temp_voice_service._clean_phone_number(phone_number)
+        user = temp_voice_service._get_or_create_user(clean_phone)
+        
+        # Determine language for speech-to-text
+        language_mapping = {
+            'en': 'en-US',
+            'sw': 'sw-KE',
+            'ki': 'sw-KE'
+        }
+        user_language = user.preferred_language or 'en'
+        stt_language = language_mapping.get(user_language, 'en-US')
+        
+        # Convert speech to text using our speech-to-text service
+        from src.services.speech_to_text_service import SpeechToTextService
+        stt_service = SpeechToTextService()
+        
+        if recording_url:
+            app.logger.info(f"Converting speech to text for recording: {recording_url}")
+            stt_result = stt_service.convert_recording_to_text(recording_url, stt_language)
+            
+            if stt_result['success']:
+                voice_text = stt_result['transcript']
+                app.logger.info(f"Speech-to-text successful - Text: {voice_text}, Confidence: {stt_result['confidence']}, Provider: {stt_result['provider']}")
+                
+                # Log the speech-to-text result for debugging
+                if stt_result.get('note'):
+                    app.logger.info(f"STT Note: {stt_result['note']}")
+            else:
+                voice_text = "I'm sorry, I couldn't understand what you said. Could you please try again?"
+                app.logger.warning(f"Speech-to-text failed: {stt_result.get('error', 'Unknown error')}")
+        else:
+            voice_text = "No recording received. Please try speaking again."
+            app.logger.warning("No recording URL provided in voice callback")
+        
+        # Process the voice input using our AI-enhanced voice service
+        response = voice_service.handle_voice_input(
+            session_id=session_id,
+            phone_number=phone_number,
+            voice_text=voice_text,
+            recording_url=recording_url
+        )
+        
+        return response, 200, {'Content-Type': 'application/xml'}
+        
+    except Exception as e:
+        app.logger.error(f"Voice recording error: {str(e)}")
+        return voice_service._create_error_response(), 200, {'Content-Type': 'application/xml'}
+
 # =============================================================================
 # END VOICE API ENDPOINTS
 # =============================================================================

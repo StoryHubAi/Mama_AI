@@ -33,8 +33,7 @@ class USSDService:
         else:
             # Deeper menu levels
             response = self._handle_deep_menu(inputs, user, session_id)
-        
-        # Log the response
+          # Log the response
         self._log_message(clean_phone, "USSD", "outgoing", response, session_id)
         
         return response
@@ -50,7 +49,8 @@ class USSDService:
             "3. Appointments\n"
             "4. Emergency\n"
             "5. Settings\n"
-            "6. Get Help"
+            "6. Get Help\n"
+            "7. 🎙️ Voice Assistant"
         )
         
         return f"CON {menu}"
@@ -112,12 +112,11 @@ class USSDService:
             menu = get_translation(lang, "settings_menu",
                 "Settings ⚙️\n"
                 "1. Change language\n"
-                "2. Update profile\n"
-                "3. Emergency contacts\n"
+                "2. Update profile\n"            "3. Emergency contacts\n"
                 "0. Back"
             )
             return f"CON {menu}"
-            
+        
         elif choice == '6':
             # Help
             help_text = get_translation(lang, "help_text",
@@ -131,6 +130,21 @@ class USSDService:
                 "SMS 'HELP' for more info"
             )
             return f"END {help_text}"
+        
+        elif choice == '7':
+            # Voice Assistant
+            voice_number = os.getenv('VOICE_PHONE_NUMBER', '+254727230675')
+            voice_text = get_translation(lang, "voice_assistant",
+                f"🎙️ Voice Assistant\n"
+                f"Call {voice_number} to access:\n"
+                "• Voice-guided menus\n"
+                "• Speak your questions\n"
+                "• AI voice responses\n"
+                "• Hands-free assistance\n\n"
+                "The call is FREE!\n"
+                "Dial now for voice help."
+            )
+            return f"END {voice_text}"
         
         else:
             error_msg = get_translation(lang, "invalid_choice", "Invalid choice. Please try again.")
