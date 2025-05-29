@@ -141,30 +141,13 @@ def sms_callback():
         # Enhanced logging for debugging
         logger.info(f"📨 Incoming SMS: From={from_number}, To={to_number}, Text='{text}'")
         
-        # Try simple handler first, then fallback to regular handler
-        try:
-            response = sms_service.handle_incoming_sms_simple(
-                from_number=from_number,
-                to_number=to_number,
-                text=text,
-                received_at=date
-            )
-        except Exception as simple_error:
-            print(f"⚠️ Simple handler failed: {simple_error}")
-            print("🔄 Trying regular SMS handler...")
-            response = sms_service.handle_incoming_sms(
-                from_number=from_number,
-                to_number=to_number,
-                text=text,
-                received_at=date
-            )
         # Validate required parameters
         if not from_number or not text:
             logger.error("❌ Missing required SMS parameters")
             return jsonify({"status": "error", "message": "Missing required parameters"}), 400
         
-        # Process SMS
-        response_data = sms_service.handle_incoming_sms(
+        # Process SMS using simple handler (with fallback and AI)
+        response_data = sms_service.handle_incoming_sms_simple(
             from_number=from_number,
             to_number=to_number,
             text=text,

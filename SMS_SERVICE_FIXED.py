@@ -59,17 +59,17 @@ class SMSService:
                     print(f"⚠️ AI returned empty response")
             except Exception as ai_error:
                 print(f"❌ AI processing failed: {str(ai_error)}")
-              # If AI failed, use fallback
+            
+            # If AI failed, use fallback
             if not ai_response:
                 print(f"\n🔄 USING FALLBACK RESPONSE...")
                 ai_response = self._get_fallback_response(text.strip(), user)
             
             print(f"\n🤖 SENDING FINAL RESPONSE:")
-            print(f"📱 TO ORIGINAL SENDER: {clean_phone}")
             print(f"📝 Response: {ai_response}")
             print(f"📏 Length: {len(ai_response)} chars")
             
-            # Send ONE response via DIRECT API back to the original sender
+            # Send ONE response via DIRECT API
             sms_result = self.send_sms_direct_api(clean_phone, ai_response)
             
             if sms_result and sms_result.get("status") == "success":
@@ -127,14 +127,15 @@ Instructions:
                 session_id=session_id,
                 channel='SMS'
             )
-              # Ensure full response is returned
+            
+            # Ensure full response is returned
             if ai_response:
                 print(f"🤖 Full AI Response Generated: {len(ai_response)} chars")
                 return ai_response
             else:
                 print(f"⚠️ AI returned empty response")
                 return None
-                
+            
         except Exception as e:
             print(f"❌ Error processing SMS with AI: {str(e)}")
             return None
@@ -142,18 +143,18 @@ Instructions:
     def send_sms_direct_api(self, phone_number, message, sender_id=None):
         """Send SMS using direct API call to bypass SSL issues"""
         try:
-            # Clean phone number but keep original for response
+            # Clean phone number
             clean_phone = self._clean_phone_number(phone_number)
             
+            # Check if it's a supported sandbox number
+            if not self._is_supported_sandbox_number(clean_phone):
+                print(f"⚠️ Converting unsupported number {clean_phone} to test number")
+                clean_phone = "+254712345678"  # Use Kenya test number
+            
             print(f"\n🤖 SENDING SMS via DIRECT API:")
-            print(f"📱 To: {clean_phone} (ORIGINAL SENDER)")
+            print(f"📱 To: {clean_phone}")
             print(f"📝 Message: {message}")
             print(f"📏 Length: {len(message)} chars")
-            
-            # Check if it's a supported sandbox number (for logging only)
-            is_supported = self._is_supported_sandbox_number(clean_phone)
-            if not is_supported:
-                print(f"⚠️ Note: {clean_phone} is not a standard sandbox number, but sending anyway")
             
             # API details
             url = "https://api.sandbox.africastalking.com/version1/messaging"

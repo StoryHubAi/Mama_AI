@@ -1,5 +1,4 @@
 import os
-import re
 import africastalking
 from datetime import datetime
 from src.models import db, User, Pregnancy, MessageLog, Appointment
@@ -280,7 +279,7 @@ class USSDService:
                 return "END Invalid choice. Dial *15629# again."
     
     def _handle_multi_step_interaction(self, inputs, user, session_id):
-        """Handle conversational AI chat with optimized response display"""
+        """Handle conversational AI chat with visible conversation history"""
         lang = user.preferred_language
         
         try:
@@ -313,24 +312,21 @@ class USSDService:
             
             # Prepare AI message with context
             ai_prompt = f"{user_message}{context_info}"
-            
-            # Get AI response - PURE AI, no hardcoding
+              # Get AI response - PURE AI, no hardcoding
             ai_response = self.ai_service.chat_with_ai(
                 ai_prompt,
                 user,
                 session_id=session_key,
                 channel='USSD'
             )
-            
-            # Build optimized conversation display
+              # Build conversation display with current exchange
             conversation_display = self._build_conversation_display(
                 user_message, ai_response, lang
             )
             
             # Return the formatted conversation directly (display already includes continuation prompt)
             return f"CON {conversation_display}"
-            
-        except Exception as e:
+              except Exception as e:
             print(f"❌ AI Chat Error: {str(e)}")
             # If AI completely fails, inform user
             if lang == 'sw':
@@ -373,86 +369,6 @@ class USSDService:
         
         return f"{response_prefix}{optimized_response}\n\n{continue_prompt}"
     
-    def _optimize_ai_response_for_ussd(self, ai_response, lang):
-        """Optimize AI response specifically for USSD constraints"""
-        if not ai_response:
-            return "No response available." if lang == 'en' else "Hakuna jibu."
-        
-        # First, try to extract key medical advice
-        key_info = self._extract_key_medical_info(ai_response)
-        if key_info and len(key_info) <= 120:  # Leave room for prompts
-            return key_info
-        
-        # If no key info extracted, use regular cleaning and truncation
-        cleaned = self._clean_ai_response(ai_response)
-        if len(cleaned) <= 120:
-            return cleaned
-        
-        # As last resort, create a summary
-        return self._create_response_summary(ai_response, lang)
-    
-    def _extract_key_medical_info(self, response):
-        """Extract the most important medical information from AI response"""
-        if not response:
-            return None
-        
-        # Look for key medical advice patterns
-        key_patterns = [
-            # Advice patterns
-            r'(?:You should|It\'s recommended|Please|Take|Avoid|Contact|See a doctor)[^.]*\.',
-            r'(?:Important|Warning|Urgent|Emergency)[^.]*\.',
-            # Symptom patterns  
-            r'(?:Symptoms include|Signs include|Watch for)[^.]*\.',
-            # Action patterns
-            r'(?:Call|Visit|Go to|Seek)[^.]*\.',
-        ]
-        
-        extracted = []
-        
-        for pattern in key_patterns:
-            matches = re.findall(pattern, response, re.IGNORECASE)
-            extracted.extend(matches)
-        
-        if extracted:
-            # Join first few key pieces
-            key_text = ' '.join(extracted[:2])
-            if len(key_text) <= 120:
-                return key_text
-        
-        return None
-    
-    def _create_response_summary(self, response, lang):
-        """Create a concise summary when response is too long"""
-        if not response:
-            return "No response" if lang == 'en' else "Hakuna jibu"
-        
-        # Split into sentences
-        sentences = response.replace('!', '.').replace('?', '.').split('.')
-        sentences = [s.strip() for s in sentences if s.strip()]
-        
-        if not sentences:
-            return response[:100] + "..." if len(response) > 100 else response
-        
-        # Try to find the most important sentence (usually first or contains keywords)
-        important_keywords = [
-            'important', 'urgent', 'should', 'must', 'contact', 'doctor', 
-            'hospital', 'immediately', 'muhimu', 'haraka', 'daktari'
-        ]
-        
-        # Look for sentences with important keywords
-        for sentence in sentences:
-            if any(keyword in sentence.lower() for keyword in important_keywords):
-                if len(sentence) <= 100:
-                    return sentence + "."
-        
-        # If no important sentence found, use first sentence
-        first_sentence = sentences[0]
-        if len(first_sentence) <= 100:
-            return first_sentence + "."
-        
-        # Last resort: truncate first sentence
-        return first_sentence[:97] + "..."
-    
     def _clean_ai_response(self, response):
         """Clean AI response by removing excessive formatting and redundant text"""
         if not response:
@@ -460,16 +376,6 @@ class USSDService:
         
         # Remove excessive line breaks and spaces
         cleaned = ' '.join(response.split())
-        
-        # Remove greeting fluff that wastes space (like "Timo, hello.")
-        greeting_patterns = [
-            r"^[A-Za-z]+,?\s+hello\.?\s*",  # "Timo, hello." or "Hello."
-            r"^Hello,?\s+[A-Za-z]+\.?\s*",   # "Hello, Timo."
-            r"^Hi,?\s+[A-Za-z]+\.?\s*",      # "Hi, Timo."
-        ]
-        
-        for pattern in greeting_patterns:
-            cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
         
         # Remove common AI prefixes that waste space
         prefixes_to_remove = [
@@ -541,6 +447,87 @@ class USSDService:
         # Strategy 4: Hard truncation with ellipsis
         return response[:max_length-3] + "..."
     
+    def _optimize_ai_response_for_ussd(self, ai_response, lang):
+        """Optimize AI response specifically for USSD constraints"""
+        if not ai_response:
+            return "No response available." if lang == 'en' else "Hakuna jibu."
+        
+        # First, try to extract key medical advice
+        key_info = self._extract_key_medical_info(ai_response)
+        if key_info and len(key_info) <= 120:  # Leave room for prompts
+            return key_info
+        
+        # If no key info extracted, use regular cleaning and truncation
+        cleaned = self._clean_ai_response(ai_response)
+        if len(cleaned) <= 120:
+            return cleaned
+        
+        # As last resort, create a summary
+        return self._create_response_summary(ai_response, lang)
+    
+    def _extract_key_medical_info(self, response):
+        """Extract the most important medical information from AI response"""
+        if not response:
+            return None
+        
+        # Look for key medical advice patterns
+        key_patterns = [
+            # Advice patterns
+            r'(?:You should|It\'s recommended|Please|Take|Avoid|Contact|See a doctor)[^.]*\.',
+            r'(?:Important|Warning|Urgent|Emergency)[^.]*\.',
+            # Symptom patterns  
+            r'(?:Symptoms include|Signs include|Watch for)[^.]*\.',
+            # Action patterns
+            r'(?:Call|Visit|Go to|Seek)[^.]*\.',
+        ]
+        
+        import re
+        extracted = []
+        
+        for pattern in key_patterns:
+            matches = re.findall(pattern, response, re.IGNORECASE)
+            extracted.extend(matches)
+        
+        if extracted:
+            # Join first few key pieces
+            key_text = ' '.join(extracted[:2])
+            if len(key_text) <= 120:
+                return key_text
+        
+        return None
+    
+    def _create_response_summary(self, response, lang):
+        """Create a concise summary when response is too long"""
+        if not response:
+            return "No response" if lang == 'en' else "Hakuna jibu"
+        
+        # Split into sentences
+        sentences = response.replace('!', '.').replace('?', '.').split('.')
+        sentences = [s.strip() for s in sentences if s.strip()]
+        
+        if not sentences:
+            return response[:100] + "..." if len(response) > 100 else response
+        
+        # Try to find the most important sentence (usually first or contains keywords)
+        important_keywords = [
+            'important', 'urgent', 'should', 'must', 'contact', 'doctor', 
+            'hospital', 'immediately', 'muhimu', 'haraka', 'daktari'
+        ]
+        
+        # Look for sentences with important keywords
+        for sentence in sentences:
+            if any(keyword in sentence.lower() for keyword in important_keywords):
+                if len(sentence) <= 100:
+                    return sentence + "."
+        
+        # If no important sentence found, use first sentence
+        first_sentence = sentences[0]
+        if len(first_sentence) <= 100:
+            return first_sentence + "."
+        
+        # Last resort: truncate first sentence
+        return first_sentence[:97] + "..."
+        
     def _handle_emergency(self, user):
         """Handle emergency situations with immediate guidance"""
         lang = user.preferred_language
@@ -642,12 +629,5 @@ class USSDService:
             )
             db.session.add(log)
             db.session.commit()
-            
-            # Enhanced logging for debugging
-            direction_icon = "📨" if direction == "incoming" else "📤"
-            print(f"{direction_icon} USSD {direction.upper()}: {phone_number}")
-            print(f"   Content: {content[:100]}{'...' if len(content) > 100 else ''}")
-            print(f"   Length: {len(content)} chars")
-            
         except Exception as e:
-            print(f"❌ Message logging failed: {str(e)}")
+            print(f"Message logging failed: {str(e)}")

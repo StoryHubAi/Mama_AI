@@ -461,16 +461,6 @@ class USSDService:
         # Remove excessive line breaks and spaces
         cleaned = ' '.join(response.split())
         
-        # Remove greeting fluff that wastes space (like "Timo, hello.")
-        greeting_patterns = [
-            r"^[A-Za-z]+,?\s+hello\.?\s*",  # "Timo, hello." or "Hello."
-            r"^Hello,?\s+[A-Za-z]+\.?\s*",   # "Hello, Timo."
-            r"^Hi,?\s+[A-Za-z]+\.?\s*",      # "Hi, Timo."
-        ]
-        
-        for pattern in greeting_patterns:
-            cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
-        
         # Remove common AI prefixes that waste space
         prefixes_to_remove = [
             "I understand that you're asking about",
