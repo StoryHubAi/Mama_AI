@@ -26,6 +26,13 @@ CORS(app)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Enable CORS for frontend integration
+CORS(app)
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Configuration
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///mama_ai.db')
@@ -129,10 +136,28 @@ def sms_callback():
         to_number = request.form.get('to') 
         text = request.form.get('text')
         date = request.form.get('date')
+        print(f"📱 Incoming SMS from {from_number}: {text}")
         
         # Enhanced logging for debugging
         logger.info(f"📨 Incoming SMS: From={from_number}, To={to_number}, Text='{text}'")
         
+        # Try simple handler first, then fallback to regular handler
+        try:
+            response = sms_service.handle_incoming_sms_simple(
+                from_number=from_number,
+                to_number=to_number,
+                text=text,
+                received_at=date
+            )
+        except Exception as simple_error:
+            print(f"⚠️ Simple handler failed: {simple_error}")
+            print("🔄 Trying regular SMS handler...")
+            response = sms_service.handle_incoming_sms(
+                from_number=from_number,
+                to_number=to_number,
+                text=text,
+                received_at=date
+            )
         # Validate required parameters
         if not from_number or not text:
             logger.error("❌ Missing required SMS parameters")
@@ -989,6 +1014,30 @@ def not_found(error):
 def internal_error(error):
     db.session.rollback()
     return jsonify({"error": "Internal server error"}), 500
+
+@app.route('/test-sms-simple', methods=['POST'])
+def test_sms_simple():
+    """Test SMS sending with simple responses"""
+    try:
+        data = request.get_json()
+        phone = data.get('phone', '+254727230675')
+        message = data.get('message', 'Test message')
+        
+        print(f"🧪 Testing SMS with simple response")
+        
+        # Simulate incoming SMS and immediate response
+        response = sms_service.handle_incoming_sms_simple(
+            from_number=phone,
+            to_number='15629',
+            text=message,
+            received_at=datetime.now().isoformat()
+        )
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        print(f"❌ Test SMS Error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 # =============================================================================
 # VOICE API ENDPOINTS
