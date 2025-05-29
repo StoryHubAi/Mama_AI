@@ -7,11 +7,10 @@ from azure.core.credentials import AzureKeyCredential
 from src.models import User, Pregnancy, EmergencyAlert, Conversation, db
 
 class AIService:
-    def __init__(self):
-        # GitHub AI Configuration
+    def __init__(self):        # GitHub AI Configuration
         self.endpoint = "https://models.github.ai/inference"
         self.model = "meta/Llama-4-Scout-17B-16E-Instruct"
-        self.token = os.getenv("GITHUB_TOKEN", "")
+        self.token = os.getenv("GITHUB_TOKEN", "YOUR_GITHUB_TOKEN_HERE")
         
         # Initialize AI client
         try:

@@ -38,7 +38,7 @@
 - ✅ `.env` file configured with all required variables:
   - Africa's Talking credentials (shortcode 15629)
   - 
-  - MySQL database connection (password: 8498)
+  - MySQL database connection (password: YOUR_PASSWORD_HERE)
 - ✅ Virtual environment `mama_ai_env` activated
 - ✅ All dependencies installed and verified
 
@@ -84,7 +84,7 @@ git add .
 git commit -m "MAMA-AI production ready"
 heroku create mama-ai-production
 
-heroku config:set MYSQL_PASSWORD=8498
+heroku config:set MYSQL_PASSWORD=YOUR_PASSWORD_HERE
 # ... set other environment variables
 git push heroku main
 ```

@@ -102,16 +102,25 @@ def sms_callback():
         to_number = request.form.get('to') 
         text = request.form.get('text')
         date = request.form.get('date')
-        
         print(f"📱 Incoming SMS from {from_number}: {text}")
         
-        # Process SMS and get AI response
-        response = sms_service.handle_incoming_sms(
-            from_number=from_number,
-            to_number=to_number,
-            text=text,
-            received_at=date
-        )
+        # Try simple handler first, then fallback to regular handler
+        try:
+            response = sms_service.handle_incoming_sms_simple(
+                from_number=from_number,
+                to_number=to_number,
+                text=text,
+                received_at=date
+            )
+        except Exception as simple_error:
+            print(f"⚠️ Simple handler failed: {simple_error}")
+            print("🔄 Trying regular SMS handler...")
+            response = sms_service.handle_incoming_sms(
+                from_number=from_number,
+                to_number=to_number,
+                text=text,
+                received_at=date
+            )
         
         print(f"✅ SMS processed successfully")
         
@@ -643,6 +652,30 @@ def not_found(error):
 def internal_error(error):
     db.session.rollback()
     return jsonify({"error": "Internal server error"}), 500
+
+@app.route('/test-sms-simple', methods=['POST'])
+def test_sms_simple():
+    """Test SMS sending with simple responses"""
+    try:
+        data = request.get_json()
+        phone = data.get('phone', '+254727230675')
+        message = data.get('message', 'Test message')
+        
+        print(f"🧪 Testing SMS with simple response")
+        
+        # Simulate incoming SMS and immediate response
+        response = sms_service.handle_incoming_sms_simple(
+            from_number=phone,
+            to_number='15629',
+            text=message,
+            received_at=datetime.now().isoformat()
+        )
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        print(f"❌ Test SMS Error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     with app.app_context():
