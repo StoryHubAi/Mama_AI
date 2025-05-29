@@ -312,10 +312,11 @@ class USSDService:
             
             # Prepare AI message with context
             ai_prompt = f"{user_message}{context_info}"
-              # Get AI response - PURE AI, no hardcoding
+            
+            # Get AI response - PURE AI, no hardcoding
             ai_response = self.ai_service.chat_with_ai(
-                ai_prompt,
-                user,
+                user_message=ai_prompt,
+                user=user,
                 session_id=session_key,
                 channel='USSD'
             )
@@ -329,7 +330,7 @@ class USSDService:
             if lang == 'sw':
                 continue_prompt = f"{conversation_display}\n\n📝 Swali lingine au 0 kumaliza:"
             else:
-                continue_prompt = f"{conversation_display}\n\n Another question or 0 to exit:"
+                continue_prompt = f"{conversation_display}\n\n📝 Another question or 0 to exit:"
             
             # Continue the conversation
             return f"CON {continue_prompt}"

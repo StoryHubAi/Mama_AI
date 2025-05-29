@@ -1,9 +1,30 @@
+import os
 import re
 from datetime import datetime
-from src.models import User, Pregnancy, EmergencyAlert
+from azure.ai.inference import ChatCompletionsClient
+from azure.ai.inference.models import SystemMessage, UserMessage
+from azure.core.credentials import AzureKeyCredential
+from src.models import User, Pregnancy, EmergencyAlert, Conversation, db
 
 class AIService:
     def __init__(self):
+        # GitHub AI Configuration
+        self.endpoint = "https://models.github.ai/inference"
+        self.model = "meta/Llama-4-Scout-17B-16E-Instruct"
+        self.token = os.getenv("GITHUB_TOKEN", "")
+        
+        # Initialize AI client
+        try:
+            self.client = ChatCompletionsClient(
+                endpoint=self.endpoint,
+                credential=AzureKeyCredential(self.token),
+            )
+            print("✅ GitHub AI client initialized successfully")
+        except Exception as e:
+            print(f"⚠️ Failed to initialize GitHub AI client: {str(e)}")
+            self.client = None
+        
+        # Emergency keywords for immediate detection
         self.emergency_keywords = [
             'severe bleeding', 'heavy bleeding', 'damu nyingi', 'bleeding heavily',
             'severe pain', 'maumivu makali', 'unbearable pain', 'sharp pain',
@@ -12,92 +33,351 @@ class AIService:
             'severe headache', 'maumivu ya kichwa', 'head pounding',
             'fever', 'homa', 'high temperature', 'hot',
             'vomiting blood', 'kutapika damu', 'blood in vomit',
-            'water broke', 'maji yamevunjika', 'waters breaking'
-        ]
-        
-        self.high_risk_symptoms = [
-            'bleeding', 'spotting', 'cramping', 'contractions',
-            'reduced movement', 'no movement', 'swelling',
-            'headache', 'dizziness', 'nausea', 'vomiting'
+            'water broke', 'maji yamevunjika', 'waters breaking',
+            'unconscious', 'fainting', 'dizzy', 'emergency', 'dharura'
         ]
     
-    def analyze_symptoms(self, symptoms_text, user):
-        """Analyze symptoms and provide appropriate response"""
-        symptoms_lower = symptoms_text.lower()
+    def get_system_prompt(self, user, language='en'):
+        """Get context-aware system prompt for the AI"""
+        # Get user's pregnancy info
+        pregnancy_info = ""
+        if user.pregnancies:
+            active_pregnancy = next((p for p in user.pregnancies if p.is_active), None)
+            if active_pregnancy:
+                pregnancy_info = f"""
+Current pregnancy information:
+- Weeks pregnant: {active_pregnancy.weeks_pregnant or 'Not specified'}
+- Due date: {active_pregnancy.due_date}
+- High risk: {'Yes' if active_pregnancy.is_high_risk else 'No'}
+- Health conditions: {active_pregnancy.health_conditions or 'None specified'}
+"""
         
-        # Check for emergency symptoms
-        emergency_detected = any(keyword in symptoms_lower for keyword in self.emergency_keywords)
-        
-        if emergency_detected:
-            return self._handle_emergency_symptoms(symptoms_text, user)
-        
-        # Check for high-risk symptoms
-        high_risk = any(keyword in symptoms_lower for keyword in self.high_risk_symptoms)
-        
-        if high_risk:
-            return self._handle_high_risk_symptoms(symptoms_text, user)
-        
-        # Normal symptoms guidance
-        return self._handle_normal_symptoms(symptoms_text, user)
+        base_prompt = f"""You are MAMA-AI, an AI-powered maternal health assistant specifically designed for pregnant women and new mothers in Kenya and East Africa. 
+
+IMPORTANT CONTEXT:
+- User's name: {user.name or 'Not provided'}
+- Phone: {user.phone_number}
+- Preferred language: {language}
+- Location: {user.location or 'Not specified'}
+{pregnancy_info}
+
+COMMUNICATION GUIDELINES:
+1. ALWAYS respond in {language} (English if 'en', Kiswahili if 'sw')
+2. Be warm, supportive, and culturally sensitive
+3. Keep responses concise for SMS/USSD (max 160 characters when possible)
+4. Use simple, clear language that women with basic education can understand
+5. Include relevant emojis to make messages friendly: 🤱 💝 🏥 ⚠️ 🚨
+
+MEDICAL SAFETY:
+- For ANY emergency symptoms, immediately recommend seeking medical care
+- Never provide specific medication dosages
+- Always encourage consulting healthcare providers for serious concerns
+- Provide general wellness and pregnancy guidance
+
+EMERGENCY KEYWORDS to watch for:
+- Heavy bleeding, severe pain, vision problems, severe headache, fever, vomiting blood, water breaking
+- Kiswahili equivalents: damu nyingi, maumivu makali, miwani, maumivu ya kichwa, homa, kutapika damu, maji yamevunjika
+
+RESPONSE FORMAT for different scenarios:
+- Normal advice: Supportive guidance with practical tips
+- Concerning symptoms: Suggest monitoring and when to seek care
+- Emergency symptoms: Immediate action needed + emergency contact
+
+Remember: You're supporting women who may have limited healthcare access, so your guidance could be crucial for their wellbeing."""
+
+        return base_prompt
     
-    def _handle_emergency_symptoms(self, symptoms, user):
-        """Handle emergency symptoms"""
+    def chat_with_ai(self, user_message, user, session_id=None, channel='SMS'):
+        """Main function to chat with GitHub AI models"""
+        try:
+            # Detect language
+            language = self._detect_language(user_message, user.preferred_language)
+            
+            # Check for immediate emergencies first
+            if self._is_emergency_message(user_message):
+                return self._handle_emergency_response(user_message, user, session_id, channel, language)
+            
+            # Get system prompt with context
+            system_prompt = self.get_system_prompt(user, language)
+            
+            # Get recent conversation history for context
+            recent_conversations = self._get_recent_conversations(user.id, limit=5)
+            context_messages = [SystemMessage(system_prompt)]
+            
+            # Add conversation history
+            for conv in recent_conversations:
+                context_messages.append(UserMessage(conv.user_message))
+                context_messages.append(SystemMessage(f"Previous AI response: {conv.ai_response}"))
+            
+            # Add current message
+            context_messages.append(UserMessage(user_message))
+              # Call GitHub AI - ALWAYS use AI, no fallback
+            if not self.client:
+                # Re-initialize client if it failed before
+                try:
+                    self.client = ChatCompletionsClient(
+                        endpoint=self.endpoint,
+                        credential=AzureKeyCredential(self.token),
+                    )
+                    print("✅ GitHub AI client re-initialized successfully")
+                except Exception as e:
+                    print(f"❌ CRITICAL: AI client failed to initialize: {str(e)}")
+                    raise Exception(f"AI service unavailable: {str(e)}")
+            
+            # Make AI call
+            response = self.client.complete(
+                messages=context_messages,
+                temperature=0.7,
+                top_p=0.9,
+                max_tokens=300,  # Limit for SMS/USSD
+                model=self.model
+            )
+            
+            ai_response = response.choices[0].message.content.strip()
+            
+            # Post-process response for SMS/USSD
+            ai_response = self._format_response_for_channel(ai_response, channel)
+            
+            # Detect intent and confidence
+            intent, confidence = self._detect_intent(user_message)
+            
+            # Save conversation to database
+            self._save_conversation(
+                user_id=user.id,
+                session_id=session_id,
+                channel=channel,
+                user_message=user_message,
+                ai_response=ai_response,
+                intent=intent,
+                confidence=confidence,
+                language=language
+            )
+            
+            return ai_response
+            
+        except Exception as e:
+            print(f"Error in AI chat: {str(e)}")
+            # Return fallback response
+            return self._get_error_response(user.preferred_language)
+    
+    def _is_emergency_message(self, message):
+        """Quick check for emergency keywords"""
+        message_lower = message.lower()
+        return any(keyword in message_lower for keyword in self.emergency_keywords)
+    
+    def _handle_emergency_response(self, user_message, user, session_id, channel, language):
+        """Handle emergency situations immediately"""
         # Create emergency alert
-        from src.models import db
         alert = EmergencyAlert(
             user_id=user.id,
-            alert_type='severe_symptoms',
-            symptoms_reported=symptoms,
+            alert_type='emergency_message',
+            symptoms_reported=user_message,
             severity_score=9,
             action_taken='emergency_response_sent'
         )
         db.session.add(alert)
         db.session.commit()
         
-        lang = user.preferred_language
-        if lang == 'sw':
-            return (
-                "🚨 DHARURA! 🚨\n\n"
-                "Dalili hizi ni hatari sana. PIGA simu 911 SASA HIVI au enda hospitali ya karibu.\n\n"
-                "Usibaki nyumbani - hii ni dharura ya kiafya.\n\n"
-                "Tumetuma ujumbe wa dharura kwa anayekuhudumia."
+        if language == 'sw':
+            response = (
+                "🚨 DHARURA! 🚨\n"
+                "Dalili hizi ni hatari sana.\n"
+                "ENDA HOSPITALI SASA HIVI!\n"
+                "Piga: 911 au 0700000000\n"
+                "Usisubiri - hii ni dharura."
             )
         else:
-            return (
-                "🚨 EMERGENCY! 🚨\n\n"
-                "These symptoms are very serious. CALL 911 NOW or go to the nearest hospital immediately.\n\n"
-                "Do not stay home - this is a medical emergency.\n\n"
-                "We've sent an emergency alert to your healthcare provider."
+            response = (
+                "🚨 EMERGENCY! 🚨\n"
+                "These symptoms are serious.\n"
+                "GO TO HOSPITAL NOW!\n"
+                "Call: 911 or 0700000000\n"
+                "Don't wait - this is urgent."
             )
+        
+        # Save emergency conversation
+        self._save_conversation(
+            user_id=user.id,
+            session_id=session_id,
+            channel=channel,
+            user_message=user_message,
+            ai_response=response,
+            intent='emergency',
+            confidence=0.95,
+            language=language
+        )
+        
+        return response
     
-    def _handle_high_risk_symptoms(self, symptoms, user):
-        """Handle high-risk symptoms"""
-        lang = user.preferred_language
-        if lang == 'sw':
-            return (
-                "⚠️ Dalili hizi zinahitaji uchunguzi wa haraka.\n\n"
-                "Wasiliana na daktari wako au enda kliniki ndani ya masaa 24.\n\n"
-                "Dalili za hatari wakati wa ujauzito:\n"
-                "• Kutokwa damu\n"
-                "• Maumivu makali\n"
-                "• Mzunguko mdogo wa mtoto\n"
-                "• Uvimbe mkuu\n\n"
-                "Jihadharini na usisubiri."
-            )
+    def _detect_language(self, message, preferred_lang):
+        """Simple language detection"""
+        swahili_words = ['nina', 'mimi', 'niko', 'je', 'ni', 'wa', 'ya', 'na', 'la', 'maumivu', 'dalili', 'ujauzito']
+        message_lower = message.lower()
+        
+        swahili_count = sum(1 for word in swahili_words if word in message_lower)
+        
+        if swahili_count >= 2:
+            return 'sw'
+        elif preferred_lang:
+            return preferred_lang
         else:
-            return (
-                "⚠️ These symptoms require prompt medical attention.\n\n"
-                "Contact your healthcare provider or visit a clinic within 24 hours.\n\n"
-                "Warning signs during pregnancy:\n"
-                "• Any bleeding\n"
-                "• Severe pain\n"
-                "• Reduced baby movement\n"
-                "• Severe swelling\n\n"
-                "Don't wait - seek care promptly."
-            )
+            return 'en'
     
-    def _handle_normal_symptoms(self, symptoms, user):
-        """Handle normal pregnancy symptoms"""
+    def _detect_intent(self, message):
+        """Detect user intent from message"""
+        message_lower = message.lower()
+        
+        intents = {
+            'symptoms': ['pain', 'hurt', 'sick', 'fever', 'bleeding', 'nausea', 'maumivu', 'dalili', 'homa'],
+            'appointment': ['appointment', 'clinic', 'doctor', 'visit', 'miadi', 'daktari', 'hospitali'],
+            'pregnancy_info': ['weeks', 'pregnant', 'baby', 'due', 'ujauzito', 'mtoto', 'mimba'],
+            'medication': ['medicine', 'pills', 'medication', 'dose', 'dawa', 'vidonge'],
+            'emergency': self.emergency_keywords,
+            'general': ['help', 'info', 'question', 'msaada', 'habari']
+        }
+        
+        for intent, keywords in intents.items():
+            matches = sum(1 for keyword in keywords if keyword in message_lower)
+            if matches > 0:
+                confidence = min(matches / len(keywords) * 2, 1.0)  # Max confidence 1.0
+                return intent, confidence
+        
+        return 'general', 0.5
+    
+    def _format_response_for_channel(self, response, channel):
+        """Format AI response for SMS or USSD constraints"""
+        if channel == 'SMS':
+            # SMS has 160 character limit per message
+            if len(response) > 150:
+                # Find a good break point
+                if '.' in response:
+                    sentences = response.split('.')
+                    short_response = sentences[0] + '.'
+                    if len(short_response) <= 150:
+                        return short_response
+                
+                # If no good break point, truncate with ellipsis
+                return response[:147] + "..."
+        
+        elif channel == 'USSD':
+            # USSD has different constraints
+            if len(response) > 180:
+                return response[:177] + "..."
+        
+        return response
+    
+    def _get_recent_conversations(self, user_id, limit=5):
+        """Get recent conversation history for context"""
+        return Conversation.query.filter_by(user_id=user_id)\
+                               .order_by(Conversation.created_at.desc())\
+                               .limit(limit).all()
+    
+    def _save_conversation(self, user_id, session_id, channel, user_message, ai_response, 
+                          intent, confidence, language):
+        """Save conversation to database"""
+        try:
+            conversation = Conversation(
+                user_id=user_id,
+                session_id=session_id,
+                channel=channel,
+                user_message=user_message,
+                ai_response=ai_response,
+                intent_detected=intent,
+                confidence_score=confidence,
+                language_detected=language
+            )
+            db.session.add(conversation)
+            db.session.commit()
+        except Exception as e:
+            print(f"Error saving conversation: {str(e)}")
+            db.session.rollback()
+    
+    def _get_ai_emergency_response(self, message, user, language):
+        """Get AI-powered emergency response - NO hardcoding"""
+        try:
+            emergency_prompt = f"""
+EMERGENCY SITUATION DETECTED!
+
+User message: "{message}"
+User's pregnancy week: {self._get_pregnancy_weeks(user)}
+Language: {language}
+
+Provide IMMEDIATE emergency guidance:
+1. Assess severity (1-10 scale)
+2. Immediate actions to take
+3. When to call emergency services
+4. Hospital contact info if needed
+
+Respond in {language} language. Be direct and urgent but reassuring.
+"""
+            # Use AI for emergency response too
+            return self._get_ai_response_direct(emergency_prompt, user, language)
+        except Exception as e:
+            print(f"❌ Emergency AI failed: {str(e)}")
+            # Only as absolute last resort            return f"🚨 EMERGENCY: Go to hospital NOW! Call emergency services immediately!"
+    
+    def _get_error_response(self, language, user=None):
+        """Get AI-powered error response - NO hardcoding"""
+        try:
+            if user:
+                error_prompt = f"""
+There was a technical issue with our system. Please provide a helpful error message to a pregnant woman.
+
+User's language: {language}
+Be reassuring but include emergency guidance.
+
+Respond in {language} language (English if 'en', Kiswahili if 'sw').
+"""
+                return self._get_ai_response_direct(error_prompt, user, language)
+            else:
+                # Minimal fallback only when absolutely no user context
+                if language == 'sw':
+                    return "Kuna tatizo. Kama ni dharura, enda hospitali. 🤱"
+                else:
+                    return "Technical issue. If emergency, go to hospital. 🤱"
+        except:
+            # Final fallback
+            return "Technical error. Seek medical help if urgent. 🤱"
+    
+    def _get_ai_response_direct(self, prompt, user, language):
+        """Get direct AI response for any prompt - ensures AI always responds"""
+        try:
+            # Ensure client is available
+            if not self.client:
+                self.client = ChatCompletionsClient(
+                    endpoint=self.endpoint,
+                    credential=AzureKeyCredential(self.token),
+                )
+            
+            # Create messages
+            messages = [
+                SystemMessage(self.get_system_prompt(user, language)),
+                UserMessage(prompt)
+            ]
+            
+            # Get AI response
+            response = self.client.complete(
+                messages=messages,
+                temperature=0.7,
+                top_p=0.9,
+                max_tokens=300,
+                model=self.model
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            print(f"❌ Direct AI call failed: {str(e)}")
+            raise Exception(f"AI service completely unavailable: {str(e)}")
+    
+    # Legacy methods for backward compatibility
+    def analyze_symptoms(self, symptoms_text, user):
+        """Legacy method - now uses AI chat"""
+        return self.chat_with_ai(symptoms_text, user, channel='SMS')
+    
+    def process_free_text_query(self, text, user):
+        """Legacy method - now uses AI chat"""
+        return self.chat_with_ai(text, user, channel='SMS')
         symptoms_lower = symptoms.lower()
         
         # Common pregnancy discomforts and advice
@@ -591,20 +871,9 @@ class AIService:
         """Get user's active pregnancy"""
         from src.models import Pregnancy
         return Pregnancy.query.filter_by(
-            user_id=user.id, 
-            is_active=True
+            user_id=user.id,            is_active=True
         ).first()
 
-    def chat_with_ai(self, message, user, conversation_history=None):
-        """Main chat interface with AI"""
-        # Store conversation in session/database if needed
-        response = self.process_free_text_query(message, user)
-        
-        # Log the conversation
-        self._log_conversation(user, message, response)
-        
-        return response
-    
     def _log_conversation(self, user, user_message, ai_response):
         """Log conversation for learning and improvement"""
         from src.models import db, MessageLog

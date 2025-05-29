@@ -15,3 +15,6 @@ gunicorn==21.2.0
 pytest==7.4.2
 pytest-flask==1.2.0
 psycopg2-binary==2.9.7
+azure-ai-inference==1.0.0b4
+PyMySQL==1.1.0
+mysql-connector-python==8.2.0

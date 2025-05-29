@@ -18,8 +18,19 @@ app = Flask(__name__)
 
 # Configuration
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///mama_ai.db')
+
+# MySQL Database Configuration
+mysql_host = os.getenv('MYSQL_HOST', 'localhost')
+mysql_user = os.getenv('MYSQL_USER', 'root')
+mysql_password = os.getenv('MYSQL_PASSWORD', '8498')
+mysql_database = os.getenv('MYSQL_DATABASE', 'mama_ai')
+
+app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{mysql_user}:{mysql_password}@{mysql_host}/{mysql_database}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 300,
+}
 
 # Initialize extensions
 db.init_app(app)
@@ -86,13 +97,15 @@ def ussd_callback():
 def sms_callback():
     """Handle incoming SMS from Africa's Talking"""
     try:
-        # Get SMS parameters
+        # Get SMS parameters from form data (Africa's Talking sends form data)
         from_number = request.form.get('from')
-        to_number = request.form.get('to')
+        to_number = request.form.get('to') 
         text = request.form.get('text')
         date = request.form.get('date')
         
-        # Process SMS
+        print(f"📱 Incoming SMS from {from_number}: {text}")
+        
+        # Process SMS and get AI response
         response = sms_service.handle_incoming_sms(
             from_number=from_number,
             to_number=to_number,
@@ -100,27 +113,36 @@ def sms_callback():
             received_at=date
         )
         
-        return jsonify({"status": "success", "message": "SMS processed"}), 200
+        print(f"✅ SMS processed successfully")
+        
+        # Return 200 status to Africa's Talking (important!)
+        return "", 200
         
     except Exception as e:
         app.logger.error(f"SMS Error: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        print(f"❌ SMS Error: {str(e)}")
+        return "", 500
 
 @app.route('/delivery-report', methods=['POST'])
 def delivery_report():
     """Handle SMS delivery reports"""
     try:
-        # Get delivery report parameters
+        # Get delivery report parameters from form data
         message_id = request.form.get('id')
         status = request.form.get('status')
         phone_number = request.form.get('phoneNumber')
         
         # Log delivery status
+        print(f"📊 Delivery report - ID: {message_id}, Status: {status}, Phone: {phone_number}")
         app.logger.info(f"Delivery report - ID: {message_id}, Status: {status}, Phone: {phone_number}")
         
-        return jsonify({"status": "received"}), 200
+        # Return 200 status to Africa's Talking
+        return "", 200
         
     except Exception as e:
+        app.logger.error(f"Delivery Report Error: {str(e)}")
+        print(f"❌ Delivery Report Error: {str(e)}")
+        return "", 500
         app.logger.error(f"Delivery report error: {str(e)}")
         return jsonify({"status": "error"}), 500
 
