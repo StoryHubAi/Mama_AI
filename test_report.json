@@ -1,0 +1,82 @@
+{
+  "test_suite": "MAMA-AI Complete System Test",
+  "timestamp": "2025-05-28T16:54:47.198745",
+  "base_url": "https://qtcfcmnf-5000.euw.devtunnels.ms",
+  "total_tests": 12,
+  "passed": 0,
+  "failed": 12,
+  "results": [
+    {
+      "test": "Health Check",
+      "status": "FAIL",
+      "details": "HTTPSConnectionPool(host='qtcfcmnf-5000.euw.devtunnels.ms', port=443): Read timed out. (read timeout=10)",
+      "timestamp": "2025-05-28T16:52:35.201210"
+    },
+    {
+      "test": "SMS Webhook",
+      "status": "FAIL",
+      "details": "HTTPSConnectionPool(host='qtcfcmnf-5000.euw.devtunnels.ms', port=443): Read timed out. (read timeout=10)",
+      "timestamp": "2025-05-28T16:52:47.452884"
+    },
+    {
+      "test": "AI Response (greeting)",
+      "status": "FAIL",
+      "details": "HTTPSConnectionPool(host='qtcfcmnf-5000.euw.devtunnels.ms', port=443): Read timed out. (read timeout=10)",
+      "timestamp": "2025-05-28T16:52:59.672489"
+    },
+    {
+      "test": "AI Response (help command)",
+      "status": "FAIL",
+      "details": "HTTPSConnectionPool(host='qtcfcmnf-5000.euw.devtunnels.ms', port=443): Read timed out. (read timeout=10)",
+      "timestamp": "2025-05-28T16:53:11.039185"
+    },
+    {
+      "test": "AI Response (symptom report)",
+      "status": "FAIL",
+      "details": "HTTPSConnectionPool(host='qtcfcmnf-5000.euw.devtunnels.ms', port=443): Read timed out. (read timeout=10)",
+      "timestamp": "2025-05-28T16:53:22.753080"
+    },
+    {
+      "test": "AI Response (emergency scenario)",
+      "status": "FAIL",
+      "details": "HTTPSConnectionPool(host='qtcfcmnf-5000.euw.devtunnels.ms', port=443): Read timed out. (read timeout=10)",
+      "timestamp": "2025-05-28T16:53:34.090264"
+    },
+    {
+      "test": "AI Response (pregnancy question)",
+      "status": "FAIL",
+      "details": "HTTPSConnectionPool(host='qtcfcmnf-5000.euw.devtunnels.ms', port=443): Read timed out. (read timeout=10)",
+      "timestamp": "2025-05-28T16:53:46.133707"
+    },
+    {
+      "test": "AI Response (appointment query)",
+      "status": "FAIL",
+      "details": "HTTPSConnectionPool(host='qtcfcmnf-5000.euw.devtunnels.ms', port=443): Read timed out. (read timeout=10)",
+      "timestamp": "2025-05-28T16:53:57.555575"
+    },
+    {
+      "test": "AI Response (unsubscribe request)",
+      "status": "FAIL",
+      "details": "HTTPSConnectionPool(host='qtcfcmnf-5000.euw.devtunnels.ms', port=443): Read timed out. (read timeout=10)",
+      "timestamp": "2025-05-28T16:54:09.114168"
+    },
+    {
+      "test": "USSD Webhook",
+      "status": "FAIL",
+      "details": "HTTPSConnectionPool(host='qtcfcmnf-5000.euw.devtunnels.ms', port=443): Read timed out. (read timeout=10)",
+      "timestamp": "2025-05-28T16:54:21.441035"
+    },
+    {
+      "test": "Testing Dashboard",
+      "status": "FAIL",
+      "details": "HTTPSConnectionPool(host='qtcfcmnf-5000.euw.devtunnels.ms', port=443): Read timed out. (read timeout=10)",
+      "timestamp": "2025-05-28T16:54:33.709754"
+    },
+    {
+      "test": "Statistics Endpoint",
+      "status": "FAIL",
+      "details": "HTTPSConnectionPool(host='qtcfcmnf-5000.euw.devtunnels.ms', port=443): Read timed out. (read timeout=10)",
+      "timestamp": "2025-05-28T16:54:46.197380"
+    }
+  ]
+}
