@@ -1,5 +1,6 @@
 import os
 import logging
+import sys
 from datetime import datetime, timedelta
 import africastalking
 from flask import Flask, request, jsonify, render_template_string
@@ -901,10 +902,9 @@ def health_check():
         "environment": environment,
         "shortcode": shortcode
     }
-    
-    # System information
+      # System information
     system_info = {
-        "python_version": os.sys.version.split()[0],
+        "python_version": sys.version.split()[0],
         "flask_env": os.getenv('FLASK_ENV', 'development'),
         "debug_mode": app.config.get('DEBUG', False)
     }
