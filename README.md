@@ -1,16 +1,16 @@
 # MAMA-AI: AI-Powered Maternal Health Assistant
 
-🏆 Africa’s Talking Hackathon 2025 – 2G Meets AI Solutions
+Africa’s Talking Hackathon 2025 – 2G Meets AI Solutions
 
 ## Overview
 MAMA-AI is an AI-driven maternal health assistant running over USSD and SMS, delivering personalized pregnancy support, reminders, and emergency triage for mothers in low-connectivity regions.
 
 ## Features
-- 🍼 Personalized pregnancy tracking
-- 📱 Multilingual (English & Kiswahili) USSD/SMS interactions
-- 🚑 Emergency detection & escalation
-- 💊 Appointment & medication reminders
-- 🔌 Offline-first design using Africa’s Talking APIs
+- Personalized pregnancy tracking
+- Multilingual (English & Kiswahili) USSD/SMS interactions
+- Emergency detection & escalation
+- Appointment & medication reminders
+- Offline-first design using Africa’s Talking APIs
 
 ## Tech Stack
 - Python 3.x
