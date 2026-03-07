@@ -1,5 +1,4 @@
 # MAMA-AI: AI-Powered Maternal Health Assistant
-
 Africa’s Talking Hackathon 2025 – 2G Meets AI Solutions
 
 ## Overview
